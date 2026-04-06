@@ -9,6 +9,8 @@ import '../../plugins/application/plugin_method_service.dart';
 import '../../plugins/domain/internal_plugins.dart';
 import '../../plugins/domain/plugin.dart';
 import '../../plugins/plugin_providers.dart';
+import '../../settings/application/app_settings_controller.dart';
+import '../../settings/domain/app_settings.dart';
 import '../player_dependencies.dart';
 import '../domain/player_models.dart';
 import '../domain/player_state.dart';
@@ -30,6 +32,19 @@ class PlayerController extends Notifier<PlayerState> {
   PlayerState build() {
     _adapter = ref.read(audioPlayerAdapterProvider);
     _bindAdapter();
+    ref.listen<AsyncValue<AppSettings>>(appSettingsControllerProvider, (
+      _,
+      next,
+    ) {
+      final settings = next.valueOrNull;
+      if (settings == null) {
+        return;
+      }
+      state = state.copyWith(
+        defaultQuality: settings.playMusic.defaultQuality,
+        desktopLyricVisible: settings.lyric.enableDesktopLyric,
+      );
+    });
     ref.onDispose(() async {
       await _playingSubscription?.cancel();
       await _completedSubscription?.cancel();
@@ -40,11 +55,14 @@ class PlayerController extends Notifier<PlayerState> {
       await _errorSubscription?.cancel();
       await _adapter.dispose();
     });
+    final initialSettings = ref.read(appSettingsControllerProvider).valueOrNull;
     return PlayerState(
       isPlaying: _adapter.isPlaying,
       position: _adapter.position,
       duration: _adapter.duration,
       volume: _adapter.volume,
+      defaultQuality: initialSettings?.playMusic.defaultQuality ?? 'standard',
+      desktopLyricVisible: initialSettings?.lyric.enableDesktopLyric ?? false,
     );
   }
 
@@ -229,8 +247,23 @@ class PlayerController extends Notifier<PlayerState> {
     );
   }
 
+  void setRepeatMode(RepeatMode repeatMode) {
+    if (state.repeatMode == repeatMode) {
+      return;
+    }
+    state = state.copyWith(repeatMode: repeatMode);
+  }
+
   void toggleDesktopLyric() {
     state = state.copyWith(desktopLyricVisible: !state.desktopLyricVisible);
+  }
+
+  void toggleMiniMode() {
+    state = state.copyWith(miniModeVisible: !state.miniModeVisible);
+  }
+
+  void setMiniModeVisible(bool visible) {
+    state = state.copyWith(miniModeVisible: visible);
   }
 
   void togglePlaylistPanel() {

@@ -35,7 +35,7 @@ class AppPaths {
   static Future<AppPaths> create() async {
     final supportDirectory = await getApplicationSupportDirectory();
     final rootDirectory = Directory(
-      path.join(supportDirectory.path, 'musicfree_flutter'),
+      path.join(supportDirectory.path, 'MusicWEP'),
     );
 
     final appDataDirectory = Directory(

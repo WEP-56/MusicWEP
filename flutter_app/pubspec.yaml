@@ -1,5 +1,5 @@
 name: flutter_app
-description: "MusicFree Flutter migration workspace."
+description: "MusicWEP Flutter workspace."
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -27,6 +27,7 @@ dependencies:
   pub_semver: ^2.2.0
   window_manager: ^0.5.1
   xml: ^6.6.1
+  tray_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +36,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - windows/runner/resources/app_icon.ico

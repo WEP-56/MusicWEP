@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../../app/theme/app_theme.dart';
 import '../../../../core/media/media_constants.dart';
 import '../../../../core/media/media_models.dart';
 import '../../../../shared/ui/app_shell.dart';
@@ -493,12 +494,14 @@ class _LocalMusicOperations extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
     return Row(
       children: <Widget>[
         FilledButton(
           onPressed: onImportFolder,
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFF47C2C),
+            backgroundColor: accent,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -534,16 +537,23 @@ class _LocalMusicOperations extends StatelessWidget {
             onChanged: onSearchChanged,
             decoration: InputDecoration(
               hintText: '搜索本地音乐',
-              suffixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: Icon(
+                Icons.search_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               filled: true,
-              fillColor: const Color(0xFFF7F7F7),
+              fillColor: theme.colorScheme.surfaceContainerHigh,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                borderSide: BorderSide(color: theme.dividerColor),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                borderSide: BorderSide(color: theme.dividerColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: accent),
               ),
             ),
           ),
@@ -596,6 +606,8 @@ class _ViewSwitchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
     return Tooltip(
       message: tooltip,
       child: InkWell(
@@ -605,17 +617,13 @@ class _ViewSwitchButton extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFF47C2C) : const Color(0xFFF3F3F3),
+            color: selected ? accent : theme.colorScheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFFF47C2C)
-                  : const Color(0xFFE4E4E4),
-            ),
+            border: Border.all(color: selected ? accent : theme.dividerColor),
           ),
           child: Icon(
             icon,
-            color: selected ? Colors.white : const Color(0xFF444444),
+            color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
             size: 20,
           ),
         ),
@@ -647,6 +655,8 @@ class _GroupedTrackView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
     if (groups.isEmpty || selectedKey == null) {
       return const Center(child: Text('暂无可显示的本地音乐。'));
     }
@@ -661,14 +671,15 @@ class _GroupedTrackView extends StatelessWidget {
         Container(
           width: 280,
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE6E6E6)),
+            color: theme.colorScheme.surface,
+            border: Border.all(color: theme.dividerColor),
             borderRadius: BorderRadius.circular(12),
           ),
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: groups.length,
             separatorBuilder: (_, _) =>
-                const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                Divider(height: 1, color: theme.dividerColor),
             itemBuilder: (context, index) {
               final group = groups.values.elementAt(index);
               final selected = group.key == selectedKey;
@@ -681,13 +692,11 @@ class _GroupedTrackView extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFFF3F3F3)
+                        ? theme.colorScheme.surfaceContainerHigh
                         : Colors.transparent,
                     border: Border(
                       left: BorderSide(
-                        color: selected
-                            ? const Color(0xFFF47C2C)
-                            : Colors.transparent,
+                        color: selected ? accent : Colors.transparent,
                         width: 3,
                       ),
                     ),
@@ -704,7 +713,7 @@ class _GroupedTrackView extends StatelessWidget {
                           fontWeight: selected
                               ? FontWeight.w700
                               : FontWeight.w500,
-                          color: const Color(0xFF202020),
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       if (group.subtitle?.isNotEmpty == true) ...<Widget>[
@@ -713,9 +722,9 @@ class _GroupedTrackView extends StatelessWidget {
                           group.subtitle!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF777777),
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -761,22 +770,26 @@ class _TrackTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (tracks.isEmpty) {
       return const Center(child: Text('暂无本地音乐，请先导入歌曲。'));
     }
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE6E6E6)),
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: <Widget>[
           Container(
             height: 42,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
@@ -820,7 +833,7 @@ class _TrackTable extends StatelessWidget {
             child: ListView.separated(
               itemCount: tracks.length,
               separatorBuilder: (_, _) =>
-                  const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                  Divider(height: 1, color: theme.dividerColor),
               itemBuilder: (context, index) {
                 final track = tracks[index];
                 final selected = selectedTrackId == track.id;
@@ -830,7 +843,7 @@ class _TrackTable extends StatelessWidget {
                   child: Container(
                     height: 48,
                     color: selected
-                        ? const Color(0xFFF3F3F3)
+                        ? theme.colorScheme.surfaceContainerHigh
                         : Colors.transparent,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: Row(
@@ -840,7 +853,9 @@ class _TrackTable extends StatelessWidget {
                           child: Center(
                             child: Text(
                               '${index + 1}',
-                              style: const TextStyle(color: Color(0xFF444444)),
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ),
@@ -875,7 +890,9 @@ class _TrackTable extends StatelessWidget {
                           child: Text(
                             _formatDuration(track.duration),
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Color(0xFF666666)),
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/media/media_constants.dart';
 import '../../../../core/media/media_models.dart';
 import '../../../../shared/ui/app_shell.dart';
+import '../../../downloads/presentation/widgets/download_track_actions.dart';
 import '../../../player/player_providers.dart';
 import '../../application/local_music_sheet_repository.dart';
 import '../../domain/media_route_state.dart';
@@ -80,6 +81,9 @@ class _LocalMusicSheetPage extends ConsumerWidget {
               ref,
               tracks: <MusicItem>[track],
             ),
+            onDownloadTrack: (track) async {
+              await queueTrackDownload(context, ref, track);
+            },
             onRemoveTrackFromCurrentSheet: (track) => ref
                 .read(localMusicSheetControllerProvider.notifier)
                 .removeMusicFromSheet(sheet.id, <MusicItem>[track]),
@@ -185,6 +189,9 @@ class _StarredMusicSheetPage extends ConsumerWidget {
                   ref,
                   tracks: <MusicItem>[track],
                 ),
+                onDownloadTrack: (track) async {
+                  await queueTrackDownload(context, ref, track);
+                },
                 onPlayQueue: (queue, startIndex) async {
                   final plugin = ref.read(pluginByIdProvider(pluginId));
                   if (plugin == null) {

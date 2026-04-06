@@ -9,6 +9,7 @@ import '../../core/media/media_constants.dart';
 import '../../core/media/media_models.dart';
 import '../../features/media/application/local_music_sheet_repository.dart';
 import '../../features/media/music_sheet_library_providers.dart';
+import '../../features/player/player_providers.dart';
 import '../../features/plugins/domain/plugin.dart';
 import '../../features/plugins/plugin_providers.dart';
 import 'bottom_player_bar.dart';
@@ -46,12 +47,8 @@ class AppShell extends StatelessWidget {
     final path = GoRouterState.of(context).uri.path;
     final compact = MediaQuery.of(context).size.width < 980;
     final theme = Theme.of(context);
-    final themeColors = AppTheme.colorsOf(context);
     final shellBackground = theme.scaffoldBackgroundColor;
     final panelBackground = theme.colorScheme.surface;
-    final sideBackground = theme.brightness == Brightness.dark
-        ? theme.colorScheme.surfaceContainerLow
-        : const Color(0xFFF7F7F7);
     final headerBackground = theme.brightness == Brightness.dark
         ? theme.colorScheme.surfaceContainer
         : Colors.white;
@@ -252,6 +249,9 @@ class _TopBarState extends ConsumerState<_TopBar> {
   @override
   Widget build(BuildContext context) {
     final themeColors = AppTheme.colorsOf(context);
+    final miniModeVisible = ref.watch(
+      playerControllerProvider.select((value) => value.miniModeVisible),
+    );
     return Container(
       height: 54,
       decoration: BoxDecoration(color: themeColors.topBarBackground),
@@ -265,7 +265,7 @@ class _TopBarState extends ConsumerState<_TopBar> {
           Row(
             children: <Widget>[
               const Text(
-                'MusicFree',
+                'MusicWEP',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -334,7 +334,13 @@ class _TopBarState extends ConsumerState<_TopBar> {
                 onTap: () => context.go('/settings'),
               ),
               const SizedBox(width: 6),
-              const _TopBarIcon(icon: Icons.crop_free_rounded),
+              _TopBarIcon(
+                icon: Icons.picture_in_picture_alt_outlined,
+                highlighted: miniModeVisible,
+                onTap: () => ref
+                    .read(playerControllerProvider.notifier)
+                    .toggleMiniMode(),
+              ),
               const SizedBox(width: 10),
               _WindowButton(
                 icon: Icons.remove_rounded,
@@ -363,7 +369,6 @@ class _TopBarState extends ConsumerState<_TopBar> {
       ),
     );
   }
-
   Future<void> _showThemeCustomizer(BuildContext context) async {
     await showDialog<void>(
       context: context,
@@ -1016,13 +1021,15 @@ class _PlayerIcon extends StatelessWidget {
 }
 
 class _TopBarIcon extends StatelessWidget {
-  const _TopBarIcon({required this.icon, this.onTap});
+  const _TopBarIcon({required this.icon, this.onTap, this.highlighted = false});
 
   final IconData icon;
   final VoidCallback? onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
+    final accent = AppTheme.colorsOf(context).accent;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -1030,8 +1037,11 @@ class _TopBarIcon extends StatelessWidget {
         height: 28,
         alignment: Alignment.center,
         decoration: BoxDecoration(
+          color: highlighted ? accent.withValues(alpha: 0.22) : null,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0x40FFFFFF)),
+          border: Border.all(
+            color: highlighted ? accent : const Color(0x40FFFFFF),
+          ),
         ),
         child: Icon(icon, color: Colors.white, size: 18),
       ),

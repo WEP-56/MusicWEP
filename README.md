@@ -1,6 +1,5 @@
 # MusicWEP - MusicFree flutter 重制版
-![MusicFree](https://github.com/maotoumao/MusicFreeDesktop) 
-
+[MusicFree](https://github.com/maotoumao/MusicFreeDesktop) 
 ---
 
 ## 项目使用约定：
@@ -44,10 +43,16 @@
 
 ## 启动项目
 
-下载仓库代码之后，在根目录下执行：
+- 下载仓库代码之后，在根目录下执行：
 
 ```bash
 cd flutter_app
 flutter run
 ```
-
+- 构建安装包（windows）
+```bash
+cd flutter_app
+flutter build windows --release
+//nsis脚本，需要修改路径
+powershell -ExecutionPolicy Bypass -File D:\musicWEP\flutter_app\windows\installer\build_installer.ps1 -MakensisPath "C:\Program Files (x86)\NSIS\makensis.exe"
+```

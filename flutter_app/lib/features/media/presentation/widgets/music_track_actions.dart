@@ -144,6 +144,7 @@ Future<void> showTrackContextMenu(
   required Offset position,
   required MusicItem track,
   required Future<void> Function() onAddToSheet,
+  Future<void> Function()? onDownload,
   Future<void> Function()? onRemoveFromCurrentSheet,
 }) async {
   final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
@@ -171,6 +172,8 @@ Future<void> showTrackContextMenu(
           child: Text('专辑: ${track.album}'),
         ),
       const PopupMenuDivider(),
+      if (onDownload != null)
+        const PopupMenuItem<String>(value: 'download', child: Text('下载')),
       const PopupMenuItem<String>(value: 'add_to_sheet', child: Text('添加到歌单')),
       if (onRemoveFromCurrentSheet != null)
         const PopupMenuItem<String>(
@@ -180,7 +183,9 @@ Future<void> showTrackContextMenu(
     ],
   );
 
-  if (selected == 'add_to_sheet') {
+  if (selected == 'download' && onDownload != null) {
+    await onDownload();
+  } else if (selected == 'add_to_sheet') {
     await onAddToSheet();
   } else if (selected == 'remove_from_sheet' &&
       onRemoveFromCurrentSheet != null) {

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/media/media_models.dart';
+import '../../../downloads/presentation/widgets/download_track_actions.dart';
+import '../../../downloads/presentation/widgets/download_track_button.dart';
 import '../../../media/music_sheet_library_providers.dart';
 import '../../../media/presentation/widgets/music_track_actions.dart';
 import '../../player_providers.dart';
@@ -96,6 +99,25 @@ class _PlaylistPanel extends ConsumerWidget {
                             return InkWell(
                               onTap: () => controller.playAt(index),
                               onDoubleTap: () => controller.playAt(index),
+                              onSecondaryTapDown: (details) =>
+                                  showTrackContextMenu(
+                                    context,
+                                    position: details.globalPosition,
+                                    track: track,
+                                    onDownload: () async {
+                                      await queueTrackDownload(
+                                        context,
+                                        ref,
+                                        track,
+                                      );
+                                    },
+                                    onAddToSheet: () =>
+                                        showAddToMusicSheetDialog(
+                                          context,
+                                          ref,
+                                          tracks: <MusicItem>[track],
+                                        ),
+                                  ),
                               child: Container(
                                 height: 40,
                                 padding: const EdgeInsets.symmetric(
@@ -125,11 +147,7 @@ class _PlaylistPanel extends ConsumerWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 10),
-                                    Icon(
-                                      Icons.download_rounded,
-                                      size: 18,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
+                                    DownloadTrackButton(track: track),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       flex: 4,

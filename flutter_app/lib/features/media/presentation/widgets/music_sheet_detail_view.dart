@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/media/media_models.dart';
+import '../../../downloads/presentation/widgets/download_track_button.dart';
 import 'music_track_actions.dart';
 
 class MusicSheetHeaderAction {
@@ -29,6 +30,7 @@ class MusicSheetDetailView extends StatefulWidget {
     required this.favoriteKeys,
     required this.onToggleFavorite,
     required this.onAddTrackToSheet,
+    required this.onDownloadTrack,
     this.searchHint = '搜索歌单内歌曲',
     this.showPlatformColumn = true,
     this.platformLabelBuilder,
@@ -45,6 +47,7 @@ class MusicSheetDetailView extends StatefulWidget {
   final Set<String> favoriteKeys;
   final Future<void> Function(MusicItem track) onToggleFavorite;
   final Future<void> Function(MusicItem track) onAddTrackToSheet;
+  final Future<void> Function(MusicItem track) onDownloadTrack;
   final String searchHint;
   final bool showPlatformColumn;
   final String Function(MusicItem track)? platformLabelBuilder;
@@ -118,6 +121,7 @@ class _MusicSheetDetailViewState extends State<MusicSheetDetailView> {
             favoriteKeys: widget.favoriteKeys,
             onToggleFavorite: widget.onToggleFavorite,
             onAddTrackToSheet: widget.onAddTrackToSheet,
+            onDownloadTrack: widget.onDownloadTrack,
             onRemoveTrackFromCurrentSheet: widget.onRemoveTrackFromCurrentSheet,
             showPlatformColumn: widget.showPlatformColumn,
             platformLabelBuilder: widget.platformLabelBuilder,
@@ -361,6 +365,7 @@ class _SheetTrackTable extends StatelessWidget {
     required this.favoriteKeys,
     required this.onToggleFavorite,
     required this.onAddTrackToSheet,
+    required this.onDownloadTrack,
     required this.onTrackTap,
     required this.onTrackDoubleTap,
     required this.emptyText,
@@ -374,6 +379,7 @@ class _SheetTrackTable extends StatelessWidget {
   final Set<String> favoriteKeys;
   final Future<void> Function(MusicItem track) onToggleFavorite;
   final Future<void> Function(MusicItem track) onAddTrackToSheet;
+  final Future<void> Function(MusicItem track) onDownloadTrack;
   final ValueChanged<MusicItem> onTrackTap;
   final ValueChanged<MusicItem> onTrackDoubleTap;
   final String emptyText;
@@ -466,6 +472,7 @@ class _SheetTrackTable extends StatelessWidget {
                     context,
                     position: details.globalPosition,
                     track: track,
+                    onDownload: () => onDownloadTrack(track),
                     onAddToSheet: () => onAddTrackToSheet(track),
                     onRemoveFromCurrentSheet:
                         onRemoveTrackFromCurrentSheet == null
@@ -498,11 +505,7 @@ class _SheetTrackTable extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                const Icon(
-                                  Icons.download_rounded,
-                                  size: 18,
-                                  color: Color(0xFFB0B0B0),
-                                ),
+                                DownloadTrackButton(track: track),
                               ],
                             ),
                           ),

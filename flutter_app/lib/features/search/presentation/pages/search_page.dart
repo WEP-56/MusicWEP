@@ -8,6 +8,8 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../../core/media/media_models.dart';
 import '../../../../shared/ui/app_shell.dart';
 import '../../../../shared/ui/section_card.dart';
+import '../../../downloads/presentation/widgets/download_track_actions.dart';
+import '../../../downloads/presentation/widgets/download_track_button.dart';
 import '../../../media/domain/media_route_state.dart';
 import '../../../player/player_providers.dart';
 import '../../../media/music_sheet_library_providers.dart';
@@ -209,8 +211,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           ref,
                           tracks: <MusicItem>[music],
                         ),
-                        onOpenRawData: (music) =>
-                            _showRawDialog(context, music),
+                        onDownloadTrack: (music) async {
+                          await queueTrackDownload(context, ref, music);
+                        },
                       );
                     }
 
@@ -505,7 +508,7 @@ class _MusicResultsTable extends StatelessWidget {
     required this.onPlayTrack,
     required this.onToggleFavorite,
     required this.onAddToSheet,
-    required this.onOpenRawData,
+    required this.onDownloadTrack,
   });
 
   final PluginRecord plugin;
@@ -514,7 +517,7 @@ class _MusicResultsTable extends StatelessWidget {
   final ValueChanged<int> onPlayTrack;
   final ValueChanged<MusicItem> onToggleFavorite;
   final ValueChanged<MusicItem> onAddToSheet;
-  final ValueChanged<MusicItem> onOpenRawData;
+  final ValueChanged<MusicItem> onDownloadTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -539,7 +542,7 @@ class _MusicResultsTable extends StatelessWidget {
                   onDoubleTap: () => onPlayTrack(index),
                   onToggleFavorite: () => onToggleFavorite(item),
                   onAddToSheet: () => onAddToSheet(item),
-                  onOpenRawData: () => onOpenRawData(item),
+                  onDownloadToQueue: () => onDownloadTrack(item),
                 );
               },
             ),
@@ -588,7 +591,7 @@ class _MusicResultRow extends StatelessWidget {
     required this.onDoubleTap,
     required this.onToggleFavorite,
     required this.onAddToSheet,
-    required this.onOpenRawData,
+    required this.onDownloadToQueue,
   });
 
   final int index;
@@ -598,7 +601,7 @@ class _MusicResultRow extends StatelessWidget {
   final VoidCallback onDoubleTap;
   final VoidCallback onToggleFavorite;
   final VoidCallback onAddToSheet;
-  final VoidCallback onOpenRawData;
+  final VoidCallback onDownloadToQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -615,6 +618,7 @@ class _MusicResultRow extends StatelessWidget {
         context,
         position: details.globalPosition,
         track: music,
+        onDownload: () async => onDownloadToQueue(),
         onAddToSheet: () async => onAddToSheet(),
       ),
       child: MouseRegion(
@@ -642,14 +646,7 @@ class _MusicResultRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    InkWell(
-                      onTap: onOpenRawData,
-                      child: const Icon(
-                        Icons.download_rounded,
-                        size: 18,
-                        color: Color(0xFF7A7A7A),
-                      ),
-                    ),
+                    DownloadTrackButton(track: music),
                   ],
                 ),
               ),

@@ -23,6 +23,7 @@ class PlayerState {
     this.qualityOverrides = const <String, String>{},
     this.currentQuality = 'standard',
     this.desktopLyricVisible = false,
+    this.miniModeVisible = false,
     this.playlistPanelVisible = false,
     this.desktopLyricOffset = const Offset(48, 96),
     this.lyric = const ParsedLyric(),
@@ -47,6 +48,7 @@ class PlayerState {
   final Map<String, String> qualityOverrides;
   final String currentQuality;
   final bool desktopLyricVisible;
+  final bool miniModeVisible;
   final bool playlistPanelVisible;
   final Offset desktopLyricOffset;
   final ParsedLyric lyric;
@@ -81,6 +83,7 @@ class PlayerState {
     Map<String, String>? qualityOverrides,
     String? currentQuality,
     bool? desktopLyricVisible,
+    bool? miniModeVisible,
     bool? playlistPanelVisible,
     Offset? desktopLyricOffset,
     ParsedLyric? lyric,
@@ -112,6 +115,7 @@ class PlayerState {
       qualityOverrides: qualityOverrides ?? this.qualityOverrides,
       currentQuality: currentQuality ?? this.currentQuality,
       desktopLyricVisible: desktopLyricVisible ?? this.desktopLyricVisible,
+      miniModeVisible: miniModeVisible ?? this.miniModeVisible,
       playlistPanelVisible: playlistPanelVisible ?? this.playlistPanelVisible,
       desktopLyricOffset: desktopLyricOffset ?? this.desktopLyricOffset,
       lyric: lyric ?? this.lyric,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/media/media_models.dart';
 import '../../../../shared/ui/app_shell.dart';
+import '../../../downloads/presentation/widgets/download_track_actions.dart';
 import '../../../player/player_providers.dart';
 import '../../domain/media_route_state.dart';
 import '../../media_providers.dart';
@@ -52,6 +53,9 @@ class SheetDetailPage extends ConsumerWidget {
               ref,
               tracks: <MusicItem>[track],
             ),
+            onDownloadTrack: (track) async {
+              await queueTrackDownload(context, ref, track);
+            },
             onPlayQueue: (queue, startIndex) async {
               final plugin = ref.read(pluginByIdProvider(state.pluginId));
               if (plugin == null || queue.isEmpty) {
