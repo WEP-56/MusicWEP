@@ -1,0 +1,51 @@
+# Workspace-specific
+trun-to-flutter.md
+音乐源.json
+
+# Local assistant/tooling config
+.codex/
+.claude/
+
+# Reference source project
+example/MusicFreeDesktop-master/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*.tmp
+*.temp
+*.log
+*.iml
+.idea/
+.vscode/
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub/
+**/.pub-cache/
+**/build/
+**/coverage/
+**/doc/api/
+**/flutter_*.png
+
+# Generated platform artifacts
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/ios/Flutter/.last_build_id
+**/macos/Flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# JetBrains / misc build output
+**/.history/
+**/.build/
+**/.buildlog/
+**/migrate_working_dir/
