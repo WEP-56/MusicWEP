@@ -147,7 +147,10 @@ class _PlaylistPanel extends ConsumerWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 10),
-                                    DownloadTrackButton(track: track),
+                                    DownloadTrackButton(
+                                      track: track,
+                                      showTooltip: false,
+                                    ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       flex: 4,

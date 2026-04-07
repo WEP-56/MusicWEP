@@ -13,7 +13,9 @@ import '../../settings/application/app_settings_controller.dart';
 import '../../settings/domain/app_settings.dart';
 import '../player_dependencies.dart';
 import '../domain/player_models.dart';
+import '../domain/player_session.dart';
 import '../domain/player_state.dart';
+import '../player_session_providers.dart';
 import '../recent_playback_providers.dart';
 import 'audio_player_adapter.dart';
 
@@ -27,11 +29,16 @@ class PlayerController extends Notifier<PlayerState> {
   StreamSubscription<double>? _volumeSubscription;
   StreamSubscription<double>? _rateSubscription;
   StreamSubscription<String>? _errorSubscription;
+  Timer? _sessionSaveTimer;
+  bool _restoringSession = false;
+  bool _savingSession = false;
+  bool _queuedSessionSave = false;
 
   @override
   PlayerState build() {
     _adapter = ref.read(audioPlayerAdapterProvider);
     _bindAdapter();
+    unawaited(_restoreSession());
     ref.listen<AsyncValue<AppSettings>>(appSettingsControllerProvider, (
       _,
       next,
@@ -46,6 +53,8 @@ class PlayerController extends Notifier<PlayerState> {
       );
     });
     ref.onDispose(() async {
+      _sessionSaveTimer?.cancel();
+      await _persistSession();
       await _playingSubscription?.cancel();
       await _completedSubscription?.cancel();
       await _positionSubscription?.cancel();
@@ -69,6 +78,7 @@ class PlayerController extends Notifier<PlayerState> {
   void _bindAdapter() {
     _playingSubscription ??= _adapter.playingStream.listen((playing) {
       state = state.copyWith(isPlaying: playing);
+      _scheduleSessionSave(immediate: true);
     });
     _completedSubscription ??= _adapter.completedStream.listen((completed) {
       if (completed) {
@@ -81,15 +91,18 @@ class PlayerController extends Notifier<PlayerState> {
         position: position,
         currentLyricIndex: currentLyricIndex,
       );
+      _scheduleSessionSave();
     });
     _durationSubscription ??= _adapter.durationStream.listen((duration) {
       state = state.copyWith(duration: duration);
     });
     _volumeSubscription ??= _adapter.volumeStream.listen((volume) {
       state = state.copyWith(volume: volume);
+      _scheduleSessionSave(immediate: true);
     });
     _rateSubscription ??= _adapter.rateStream.listen((rate) {
       state = state.copyWith(rate: rate);
+      _scheduleSessionSave(immediate: true);
     });
     _errorSubscription ??= _adapter.errorStream.listen((message) {
       final normalized = message.trim();
@@ -101,6 +114,7 @@ class PlayerController extends Notifier<PlayerState> {
         isPlaying: false,
         errorMessage: normalized,
       );
+      _scheduleSessionSave(immediate: true);
     });
   }
 
@@ -127,6 +141,7 @@ class PlayerController extends Notifier<PlayerState> {
       clearDuration: true,
       clearSource: true,
     );
+    _scheduleSessionSave(immediate: true);
 
     await _loadCurrentTrack(playWhenReady: true);
   }
@@ -192,6 +207,7 @@ class PlayerController extends Notifier<PlayerState> {
     }
     await _adapter.seek(position);
     state = state.copyWith(position: position);
+    _scheduleSessionSave(immediate: true);
   }
 
   Future<void> setVolume(double volume) async {
@@ -220,6 +236,7 @@ class PlayerController extends Notifier<PlayerState> {
       qualityOverrides: nextOverrides,
       currentQuality: quality,
     );
+    _scheduleSessionSave(immediate: true);
 
     if (currentTrack != null) {
       final resumeAt = state.position;
@@ -245,6 +262,7 @@ class PlayerController extends Notifier<PlayerState> {
         RepeatMode.shuffle => RepeatMode.listLoop,
       },
     );
+    _scheduleSessionSave(immediate: true);
   }
 
   void setRepeatMode(RepeatMode repeatMode) {
@@ -252,6 +270,7 @@ class PlayerController extends Notifier<PlayerState> {
       return;
     }
     state = state.copyWith(repeatMode: repeatMode);
+    _scheduleSessionSave(immediate: true);
   }
 
   void toggleDesktopLyric() {
@@ -293,6 +312,7 @@ class PlayerController extends Notifier<PlayerState> {
       clearDuration: true,
       clearSource: true,
     );
+    _scheduleSessionSave(immediate: true);
     await _loadCurrentTrack(playWhenReady: true);
   }
 
@@ -305,11 +325,13 @@ class PlayerController extends Notifier<PlayerState> {
     if (nextQueue.isEmpty) {
       state = const PlayerState();
       await _adapter.pause();
+      _scheduleSessionSave(immediate: true);
       return;
     }
 
     if (currentIndex == null) {
       state = state.copyWith(queue: nextQueue);
+      _scheduleSessionSave(immediate: true);
       return;
     }
 
@@ -329,6 +351,7 @@ class PlayerController extends Notifier<PlayerState> {
         clearDuration: true,
         clearSource: true,
       );
+      _scheduleSessionSave(immediate: true);
       await _loadCurrentTrack(playWhenReady: true);
       return;
     }
@@ -337,11 +360,13 @@ class PlayerController extends Notifier<PlayerState> {
       queue: nextQueue,
       currentIndex: index < currentIndex ? currentIndex - 1 : currentIndex,
     );
+    _scheduleSessionSave(immediate: true);
   }
 
   Future<void> clearQueue() async {
     await _adapter.pause();
     state = const PlayerState();
+    _scheduleSessionSave(immediate: true);
   }
 
   Future<void> _loadCurrentTrack({
@@ -412,6 +437,7 @@ class PlayerController extends Notifier<PlayerState> {
         currentLyricIndex: lyric.resolveCurrentIndex(currentPosition),
         clearError: true,
       );
+      _scheduleSessionSave(immediate: true);
       await ref
           .read(recentPlaybackControllerProvider.notifier)
           .record(pluginId: plugin.storageKey, musicItem: resolvedTrack);
@@ -421,6 +447,7 @@ class PlayerController extends Notifier<PlayerState> {
         isPlaying: false,
         errorMessage: error.toString(),
       );
+      _scheduleSessionSave(immediate: true);
     }
   }
 
@@ -484,7 +511,144 @@ class PlayerController extends Notifier<PlayerState> {
       clearDuration: true,
       clearSource: true,
     );
+    _scheduleSessionSave(immediate: true);
     await _loadCurrentTrack(playWhenReady: true);
+  }
+
+  Future<void> _restoreSession() async {
+    _restoringSession = true;
+    try {
+      final repository = await ref.read(playerSessionRepositoryProvider.future);
+      final session = await repository.load();
+      if (session == null) {
+        return;
+      }
+
+      try {
+        await ref.read(pluginControllerProvider.future);
+      } catch (_) {}
+
+      final restoredQueue = session.queue;
+      final restoredTrack = _resolveRestoredTrack(session);
+      final restoredIndex = restoredTrack == null
+          ? null
+          : restoredQueue.indexWhere(
+              (item) =>
+                  item.platform == restoredTrack.platform &&
+                  item.id == restoredTrack.id,
+            );
+      final restoredPosition = session.position;
+
+      await _adapter.setVolume(session.volume.clamp(0, 1));
+      await _adapter.setRate(session.rate.clamp(0.25, 2.0));
+
+      state = state.copyWith(
+        queue: restoredQueue,
+        plugin: restoredTrack == null
+            ? state.plugin
+            : _resolvePluginForTrack(restoredTrack, fallback: state.plugin),
+        currentIndex: restoredIndex,
+        currentTrack: restoredTrack,
+        position: restoredPosition,
+        volume: session.volume.clamp(0, 1),
+        rate: session.rate.clamp(0.25, 2.0),
+        repeatMode: session.repeatMode,
+        qualityOverrides: session.qualityOverrides,
+        currentQuality: session.currentQuality,
+        isPlaying: false,
+        isLoading: restoredTrack != null,
+        lyric: const ParsedLyric(),
+        currentLyricIndex: -1,
+        clearError: true,
+        clearDuration: true,
+        clearSource: true,
+      );
+
+      if (restoredTrack != null) {
+        await _loadCurrentTrack(
+          playWhenReady: false,
+          resumeAt: restoredPosition,
+          qualityOverride: session.currentQuality,
+        );
+      }
+    } catch (_) {
+      // Ignore restore failures and start with a clean session.
+    } finally {
+      _restoringSession = false;
+    }
+  }
+
+  MusicItem? _resolveRestoredTrack(PlayerSession session) {
+    if (session.currentTrack != null) {
+      final match = session.queue.where((item) {
+        return item.platform == session.currentTrack!.platform &&
+            item.id == session.currentTrack!.id;
+      }).firstOrNull;
+      if (match != null) {
+        return match;
+      }
+    }
+
+    final index = session.currentIndex;
+    if (index != null && index >= 0 && index < session.queue.length) {
+      return session.queue[index];
+    }
+    return null;
+  }
+
+  void _scheduleSessionSave({bool immediate = false}) {
+    if (_restoringSession) {
+      return;
+    }
+    _sessionSaveTimer?.cancel();
+    if (immediate) {
+      unawaited(_persistSession());
+      return;
+    }
+    _sessionSaveTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(_persistSession());
+    });
+  }
+
+  Future<void> _persistSession() async {
+    if (_restoringSession) {
+      return;
+    }
+    if (_savingSession) {
+      _queuedSessionSave = true;
+      return;
+    }
+
+    _savingSession = true;
+    try {
+      final repository = await ref.read(playerSessionRepositoryProvider.future);
+      if (state.queue.isEmpty) {
+        await repository.clear();
+        return;
+      }
+
+      await repository.save(
+        PlayerSession(
+          queue: state.queue,
+          currentTrack: state.currentTrack,
+          currentIndex: state.currentIndex,
+          position: state.position,
+          repeatMode: state.repeatMode,
+          volume: state.volume,
+          rate: state.rate,
+          currentQuality: state.currentQuality,
+          qualityOverrides: state.qualityOverrides,
+        ),
+      );
+    } catch (_) {
+      // Ignore save failures.
+    } finally {
+      _savingSession = false;
+      if (_queuedSessionSave) {
+        _queuedSessionSave = false;
+        unawaited(_persistSession());
+      }
+    }
   }
 
   PluginRecord? _resolvePluginForTrack(
@@ -521,4 +685,8 @@ class PlayerController extends Notifier<PlayerState> {
         plugin.hash == platform ||
         plugin.manifest?.platform == platform;
   }
+}
+
+extension<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
