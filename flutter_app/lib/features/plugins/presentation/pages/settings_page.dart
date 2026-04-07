@@ -7,6 +7,7 @@ import '../../../downloads/download_providers.dart';
 import '../../../settings/application/app_settings_controller.dart';
 import '../../../settings/domain/app_settings.dart';
 import '../../../settings/presentation/widgets/settings_controls.dart';
+import '../../../settings/settings_providers.dart';
 import '../../plugin_providers.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -34,10 +35,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final settingsAsync = ref.watch(appSettingsControllerProvider);
     final appPathsAsync = ref.watch(appPathsProvider);
     final downloadSettingsAsync = ref.watch(downloadSettingsProvider);
+    final cacheUsageAsync = ref.watch(cacheUsageBytesProvider);
 
     return AppShell(
       title: '设置',
-      subtitle: '调整常规、播放、下载、歌词和插件相关行为。',
+      subtitle: '调整常规、播放、下载、歌词、插件与缓存相关行为。',
       child: settingsAsync.when(
         data: (settings) => appPathsAsync.when(
           data: (paths) => downloadSettingsAsync.when(
@@ -95,11 +97,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           child: _PluginSettingsSection(settings: settings),
                         ),
                         _AnchoredSection(
+                          key: _sectionKeys[_SettingsSection.cache],
+                          title: _SettingsSection.cache.label,
+                          child: _CacheSettingsSection(
+                            settings: settings,
+                            cacheUsageAsync: cacheUsageAsync,
+                          ),
+                        ),
+                        _AnchoredSection(
                           key: _sectionKeys[_SettingsSection.shortCut],
                           title: _SettingsSection.shortCut.label,
                           child: const SettingsPlaceholder(
                             title: '快捷键',
-                            description: '快捷键配置页面骨架已补齐，具体按键录制与全局热键接入后续实现。',
+                            description: '快捷键配置入口已预留，后续再接入按键录制与全局热键。',
                           ),
                         ),
                         _AnchoredSection(
@@ -107,7 +117,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           title: _SettingsSection.network.label,
                           child: const SettingsPlaceholder(
                             title: '网络',
-                            description: '代理与网络诊断配置后续接入，目前先保留布局位置。',
+                            description: '代理与网络诊断配置后续接入，当前先保留位置。',
                           ),
                         ),
                         _AnchoredSection(
@@ -248,7 +258,7 @@ class _PlayMusicSettingsSection extends ConsumerWidget {
         ),
         SettingsField(
           label: '双击列表歌曲',
-          hint: '当前先补设置项，后续逐步让各列表页都统一读取。',
+          hint: '后续逐步让各列表页面统一读取这一项。',
           child: SettingsChoiceChipBar<String>(
             value: settings.playMusic.clickMusicList,
             options: const <String>['normal', 'replace'],
@@ -283,7 +293,7 @@ class _DownloadSettingsSection extends ConsumerWidget {
       children: <Widget>[
         SettingsField(
           label: '下载目录',
-          hint: '修改后会影响后续新加入的下载任务。',
+          hint: '修改后会影响后续新增的下载任务。',
           child: SettingsPathField(
             path: settings.download.path?.trim().isNotEmpty == true
                 ? settings.download.path!
@@ -396,6 +406,104 @@ class _PluginSettingsSection extends ConsumerWidget {
   }
 }
 
+class _CacheSettingsSection extends ConsumerWidget {
+  const _CacheSettingsSection({
+    required this.settings,
+    required this.cacheUsageAsync,
+  });
+
+  final AppSettings settings;
+  final AsyncValue<int> cacheUsageAsync;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SettingsSectionCard(
+      title: '缓存',
+      children: <Widget>[
+        SettingsField(
+          label: '清除缓存',
+          hint: '达到上限后会自动按最旧缓存优先清理。',
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: cacheUsageAsync.when(
+                  data: (value) =>
+                      SelectableText('当前占用：${_formatBytes(value)}'),
+                  error: (error, _) => Text('读取缓存失败：$error'),
+                  loading: () => const Text('正在统计缓存占用...'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: cacheUsageAsync.isLoading
+                    ? null
+                    : () => _showClearCacheDialog(context, ref),
+                child: const Text('删除缓存'),
+              ),
+            ],
+          ),
+        ),
+        SettingsField(
+          label: '缓存最大值',
+          hint: '达到此值会自动清理缓存。',
+          child: SettingsChoiceChipBar<int>(
+            value: settings.cache.maxSizeMb,
+            options: const <int>[128, 256, 512, 1024, 2048, 4096],
+            labelBuilder: (value) => value >= 1024
+                ? '${(value / 1024).toStringAsFixed(value % 1024 == 0 ? 0 : 1)} GB'
+                : '$value MB',
+            onChanged: (value) async {
+              await ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setCacheMaxSizeMb(value);
+              ref.invalidate(cacheUsageBytesProvider);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showClearCacheDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final currentUsage = ref.read(cacheUsageBytesProvider).valueOrNull ?? 0;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('清除缓存'),
+          content: Text('当前缓存占用 ${_formatBytes(currentUsage)}。\n\n确认删除缓存文件？'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final manager = await ref.read(appCacheManagerProvider.future);
+    await manager.clearCache();
+    ref.invalidate(cacheUsageBytesProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('缓存已清理。')));
+    }
+  }
+}
+
 class _BackupSection extends StatelessWidget {
   const _BackupSection({required this.paths});
 
@@ -418,7 +526,7 @@ class _BackupSection extends StatelessWidget {
           label: '日志目录',
           child: SelectableText(paths.logsDirectory.path),
         ),
-        const Text('WebDAV 与备份恢复流程后续接入，这一节先保留布局和本地目录信息。'),
+        const Text('WebDAV 与备份恢复流程后续接入，这一节先保留本地目录信息。'),
       ],
     );
   }
@@ -430,6 +538,7 @@ enum _SettingsSection {
   download('下载'),
   lyric('歌词'),
   plugin('插件'),
+  cache('缓存'),
   shortCut('快捷键'),
   network('网络'),
   backup('备份');
@@ -446,4 +555,16 @@ String _qualityLabel(String value) {
     'super' => '超高音质',
     _ => '标准音质',
   };
+}
+
+String _formatBytes(int bytes) {
+  const units = <String>['B', 'KB', 'MB', 'GB'];
+  var size = bytes.toDouble();
+  var unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  final fractionDigits = size >= 100 ? 0 : (size >= 10 ? 1 : 2);
+  return '${size.toStringAsFixed(fractionDigits)} ${units[unitIndex]}';
 }

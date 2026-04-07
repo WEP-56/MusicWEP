@@ -128,6 +128,7 @@ class AppShell extends ConsumerWidget {
                   children: <Widget>[
                     Expanded(
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
                           _Sidebar(
                             path: path,
@@ -1073,100 +1074,117 @@ class _Sidebar extends ConsumerWidget {
             : sideBackground,
         border: Border(right: BorderSide(color: borderColor)),
       ),
-      child: Column(
-        children: <Widget>[
-          const SizedBox(height: 12),
-          ...AppShell._primaryDestinations.map(
-            (item) => _SidebarItem(
-              destination: item.path,
-              label: item.label,
-              icon: item.icon,
-              selected: _matches(path, item.path),
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          primary: true,
+          padding: const EdgeInsets.only(top: 12, bottom: 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                ...AppShell._primaryDestinations.map(
+                  (item) => _SidebarItem(
+                    destination: item.path,
+                    label: item.label,
+                    icon: item.icon,
+                    selected: _matches(path, item.path),
+                  ),
+                ),
+                const Divider(height: 20, color: Color(0xFFE2E2E2)),
+                _LibrarySection(
+                  title: '我的歌单',
+                  actions: <Widget>[
+                    _HeaderActionButton(
+                      tooltip: '导入歌单',
+                      icon: Icons.playlist_add_rounded,
+                      onTap: () => _showImportSheetDialog(context, ref),
+                    ),
+                    _HeaderActionButton(
+                      tooltip: '新建歌单',
+                      icon: Icons.add_rounded,
+                      onTap: () => _showCreateSheetDialog(context, ref),
+                    ),
+                  ],
+                  child: localSheets.when(
+                    data: (items) => Column(
+                      children: items
+                          .map(
+                            (sheet) => _LibrarySidebarItem(
+                              destination: _musicSheetRoute(
+                                localPluginName,
+                                sheet.id,
+                              ),
+                              label: sheet.id == defaultLocalMusicSheetId
+                                  ? '我喜欢'
+                                  : sheet.title,
+                              icon: sheet.id == defaultLocalMusicSheetId
+                                  ? Icons.favorite_border_rounded
+                                  : Icons.music_note_rounded,
+                              selected:
+                                  path ==
+                                  _musicSheetRoute(localPluginName, sheet.id),
+                              onRename: sheet.id == defaultLocalMusicSheetId
+                                  ? null
+                                  : () => _showRenameSheetDialog(
+                                      context,
+                                      ref,
+                                      sheet,
+                                    ),
+                              onDelete: sheet.id == defaultLocalMusicSheetId
+                                  ? null
+                                  : () => _deleteSheet(context, ref, sheet),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                    error: (error, _) =>
+                        _SectionMessage(text: error.toString()),
+                    loading: () => const _SectionLoading(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _LibrarySection(
+                  title: '我的收藏',
+                  child: starredSheets.when(
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return const _SectionMessage(text: '暂无收藏歌单');
+                      }
+                      return Column(
+                        children: items
+                            .map(
+                              (sheet) => _LibrarySidebarItem(
+                                destination: _musicSheetRoute(
+                                  sheet.platform,
+                                  sheet.id,
+                                ),
+                                label: sheet.title,
+                                icon: Icons.music_note_rounded,
+                                selected:
+                                    path ==
+                                    _musicSheetRoute(sheet.platform, sheet.id),
+                                onDelete: () => ref
+                                    .read(
+                                      starredMusicSheetControllerProvider
+                                          .notifier,
+                                    )
+                                    .remove(sheet),
+                              ),
+                            )
+                            .toList(growable: false),
+                      );
+                    },
+                    error: (error, _) =>
+                        _SectionMessage(text: error.toString()),
+                    loading: () => const _SectionLoading(),
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 20, color: Color(0xFFE2E2E2)),
-          _LibrarySection(
-            title: '我的歌单',
-            actions: <Widget>[
-              _HeaderActionButton(
-                tooltip: '导入歌单',
-                icon: Icons.playlist_add_rounded,
-                onTap: () => _showImportSheetDialog(context, ref),
-              ),
-              _HeaderActionButton(
-                tooltip: '新建歌单',
-                icon: Icons.add_rounded,
-                onTap: () => _showCreateSheetDialog(context, ref),
-              ),
-            ],
-            child: localSheets.when(
-              data: (items) => Column(
-                children: items
-                    .map(
-                      (sheet) => _LibrarySidebarItem(
-                        destination: _musicSheetRoute(
-                          localPluginName,
-                          sheet.id,
-                        ),
-                        label: sheet.id == defaultLocalMusicSheetId
-                            ? '我喜欢'
-                            : sheet.title,
-                        icon: sheet.id == defaultLocalMusicSheetId
-                            ? Icons.favorite_border_rounded
-                            : Icons.music_note_rounded,
-                        selected:
-                            path == _musicSheetRoute(localPluginName, sheet.id),
-                        onRename: sheet.id == defaultLocalMusicSheetId
-                            ? null
-                            : () => _showRenameSheetDialog(context, ref, sheet),
-                        onDelete: sheet.id == defaultLocalMusicSheetId
-                            ? null
-                            : () => _deleteSheet(context, ref, sheet),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-              error: (error, _) => _SectionMessage(text: error.toString()),
-              loading: () => const _SectionLoading(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _LibrarySection(
-            title: '我的收藏',
-            child: starredSheets.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return const _SectionMessage(text: '暂无收藏歌单');
-                }
-                return Column(
-                  children: items
-                      .map(
-                        (sheet) => _LibrarySidebarItem(
-                          destination: _musicSheetRoute(
-                            sheet.platform,
-                            sheet.id,
-                          ),
-                          label: sheet.title,
-                          icon: Icons.music_note_rounded,
-                          selected:
-                              path ==
-                              _musicSheetRoute(sheet.platform, sheet.id),
-                          onDelete: () => ref
-                              .read(
-                                starredMusicSheetControllerProvider.notifier,
-                              )
-                              .remove(sheet),
-                        ),
-                      )
-                      .toList(growable: false),
-                );
-              },
-              error: (error, _) => _SectionMessage(text: error.toString()),
-              loading: () => const _SectionLoading(),
-            ),
-          ),
-          const Spacer(),
-        ],
+        ),
       ),
     );
   }

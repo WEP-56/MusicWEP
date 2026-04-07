@@ -5,6 +5,7 @@ class AppSettings {
     this.download = const DownloadSectionSettings(),
     this.lyric = const LyricSettings(),
     this.plugin = const PluginSettings(),
+    this.cache = const CacheSettings(),
   });
 
   final NormalSettings normal;
@@ -12,6 +13,7 @@ class AppSettings {
   final DownloadSectionSettings download;
   final LyricSettings lyric;
   final PluginSettings plugin;
+  final CacheSettings cache;
 
   static const AppSettings defaults = AppSettings();
 
@@ -23,6 +25,7 @@ class AppSettings {
       download: DownloadSectionSettings.fromJson(_readMap(raw['download'])),
       lyric: LyricSettings.fromJson(_readMap(raw['lyric'])),
       plugin: PluginSettings.fromJson(_readMap(raw['plugin'])),
+      cache: CacheSettings.fromJson(_readMap(raw['cache'])),
     );
   }
 
@@ -32,6 +35,7 @@ class AppSettings {
     DownloadSectionSettings? download,
     LyricSettings? lyric,
     PluginSettings? plugin,
+    CacheSettings? cache,
   }) {
     return AppSettings(
       normal: normal ?? this.normal,
@@ -39,6 +43,7 @@ class AppSettings {
       download: download ?? this.download,
       lyric: lyric ?? this.lyric,
       plugin: plugin ?? this.plugin,
+      cache: cache ?? this.cache,
     );
   }
 
@@ -49,6 +54,7 @@ class AppSettings {
       'download': download.toJson(),
       'lyric': lyric.toJson(),
       'plugin': plugin.toJson(),
+      'cache': cache.toJson(),
     };
   }
 }
@@ -284,6 +290,27 @@ class PluginSettings {
       'autoUpdatePlugin': autoUpdatePlugin,
       'notCheckPluginVersion': notCheckPluginVersion,
     };
+  }
+}
+
+class CacheSettings {
+  const CacheSettings({this.maxSizeMb = 512});
+
+  final int maxSizeMb;
+
+  factory CacheSettings.fromJson(Map<String, dynamic> json) {
+    final rawValue = (json['maxSizeMb'] as num?)?.toInt() ?? 512;
+    return CacheSettings(maxSizeMb: rawValue.clamp(64, 8192));
+  }
+
+  CacheSettings copyWith({int? maxSizeMb}) {
+    return CacheSettings(
+      maxSizeMb: (maxSizeMb ?? this.maxSizeMb).clamp(64, 8192),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'maxSizeMb': maxSizeMb};
   }
 }
 

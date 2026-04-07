@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/window/window_size_storage.dart';
 import '../core/window/window_visibility_provider.dart';
 import '../features/player/domain/player_models.dart';
 import '../features/player/player_providers.dart';
@@ -83,6 +84,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   bool _isFullScreen = false;
   bool _trayReady = false;
   bool _exitingApplication = false;
+  Timer? _windowSizePersistDebounce;
 
   static const String _trayIconAsset = 'windows/runner/resources/app_icon.ico';
 
@@ -115,6 +117,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
       windowManager.removeListener(this);
       trayManager.removeListener(this);
     }
+    _windowSizePersistDebounce?.cancel();
     super.dispose();
   }
 
@@ -199,6 +202,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
     setState(() {
       _isMaximized = false;
     });
+    _schedulePersistWindowSize();
   }
 
   @override
@@ -209,6 +213,12 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   @override
   void onWindowRestore() {
     ref.read(appWindowVisibilityProvider.notifier).state = true;
+    _schedulePersistWindowSize();
+  }
+
+  @override
+  void onWindowResized() {
+    _schedulePersistWindowSize();
   }
 
   @override
@@ -271,6 +281,24 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   Future<void> _showTrayContextMenu() async {
     await _refreshTrayMenu();
     await trayManager.popUpContextMenu();
+  }
+
+  void _schedulePersistWindowSize() {
+    if (!_isWindowsDesktop || _isMaximized || _isFullScreen) {
+      return;
+    }
+    _windowSizePersistDebounce?.cancel();
+    _windowSizePersistDebounce = Timer(
+      const Duration(milliseconds: 240),
+      () async {
+        try {
+          final size = await windowManager.getSize();
+          await WindowSizeStorage.writeWindowSize(size);
+        } catch (_) {
+          // Ignore persistence failures.
+        }
+      },
+    );
   }
 
   Future<void> _refreshTrayMenu() async {

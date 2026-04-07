@@ -23,7 +23,7 @@ import '../../features/search/presentation/pages/search_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/search',
+    initialLocation: '/discover',
     routes: <RouteBase>[
       GoRoute(
         path: '/overview',

@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
+import 'core/window/window_size_storage.dart';
 import 'features/player/presentation/desktop_lyric_window.dart';
 
 Future<void> main(List<String> args) async {
@@ -25,13 +26,18 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  final initialSize =
+      await WindowSizeStorage.readWindowSize() ??
+      WindowSizeStorage.fallbackSize;
+
   unawaited(
     windowManager.waitUntilReadyToShow(
-      const WindowOptions(
+      WindowOptions(
         backgroundColor: Colors.transparent,
         titleBarStyle: TitleBarStyle.hidden,
         windowButtonVisibility: false,
-        minimumSize: Size(1100, 720),
+        minimumSize: WindowSizeStorage.minimumSize,
+        size: initialSize,
       ),
       () async {
         await windowManager.show();

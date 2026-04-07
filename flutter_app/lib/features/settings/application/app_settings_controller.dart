@@ -1,18 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/json_file_store.dart';
 import '../../plugins/plugin_providers.dart';
+import 'app_cache_manager.dart';
 import '../domain/app_settings.dart';
 
 class AppSettingsController extends AsyncNotifier<AppSettings> {
   JsonFileStore? _store;
+  AppCacheManager? _cacheManager;
+  Timer? _cacheMaintenanceTimer;
+  bool _cacheMaintenanceRunning = false;
 
   @override
   Future<AppSettings> build() async {
     final appPaths = await ref.watch(appPathsProvider.future);
     _store = JsonFileStore(appPaths.configFilePath);
+    _cacheManager = AppCacheManager(appPaths);
+    ref.onDispose(() {
+      _cacheMaintenanceTimer?.cancel();
+    });
     final raw = await _store!.readObject();
-    return AppSettings.fromJson(raw);
+    final settings = AppSettings.fromJson(raw);
+    _startCacheMaintenance(settings);
+    unawaited(_maintainCache(settings));
+    return settings;
   }
 
   Future<void> setNormalCloseBehavior(String value) {
@@ -113,6 +126,13 @@ class AppSettingsController extends AsyncNotifier<AppSettings> {
     );
   }
 
+  Future<void> setCacheMaxSizeMb(int value) {
+    final current = state.valueOrNull ?? AppSettings.defaults;
+    return _save(
+      current.copyWith(cache: current.cache.copyWith(maxSizeMb: value)),
+    );
+  }
+
   Future<void> _save(AppSettings next) async {
     state = AsyncData(next);
     final store = _store;
@@ -122,6 +142,30 @@ class AppSettingsController extends AsyncNotifier<AppSettings> {
     final raw = await store.readObject();
     raw.addAll(next.toJson());
     await store.writeJson(raw);
+    _startCacheMaintenance(next);
+    await _maintainCache(next);
+  }
+
+  void _startCacheMaintenance(AppSettings settings) {
+    _cacheMaintenanceTimer?.cancel();
+    _cacheMaintenanceTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      unawaited(_maintainCache(settings));
+    });
+  }
+
+  Future<void> _maintainCache(AppSettings settings) async {
+    final cacheManager = _cacheManager;
+    if (cacheManager == null || _cacheMaintenanceRunning) {
+      return;
+    }
+    _cacheMaintenanceRunning = true;
+    try {
+      await cacheManager.enforceLimit(
+        maxBytes: settings.cache.maxSizeMb * 1024 * 1024,
+      );
+    } finally {
+      _cacheMaintenanceRunning = false;
+    }
   }
 }
 
