@@ -21,6 +21,7 @@ desktop.ini
 *.iml
 .idea/
 .vscode/
+flutter_app/windows/installer/dist
 
 # Flutter / Dart
 **/.dart_tool/
