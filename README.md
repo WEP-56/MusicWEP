@@ -1,6 +1,10 @@
-# MusicWEP - MusicFree flutter 重制版
-[MusicFree](https://github.com/maotoumao/MusicFreeDesktop) 
----
+<p align="center">
+  <img src="assest/logo.png" alt="MusicWEP Logo" width="180" />
+</p>
+
+<h1 align="center">MusicWEP</h1>
+源项目地址：https://github.com/maotoumao/MusicFreeDesktop
+
 
 ## 项目使用约定：
 本项目基于 AGPL 3.0 协议开源，使用此项目时请遵守开源协议。  
@@ -17,17 +21,11 @@
 > 此重置版本将支持 Windows 、 macOS 、 Linux 、 Android 、iPhone等
 
 
-
-### 下载地址
-
-
 ## 特性
 
-- 插件化：本软件仅仅是一个播放器，本身**并不集成**任何平台的任何音源，所有的搜索、播放、歌单导入等功能全部基于**插件**。这也就意味着，**只要可以在互联网上搜索到的音源，只要有对应的插件，你都可以使用本软件进行搜索、播放等功能。** 关于插件的详细说明请参考 [安卓版 Readme 的插件部分](https://github.com/maotoumao/MusicFree#%E6%8F%92%E4%BB%B6)。
+- 插件化：本软件仅仅是一个音频播放器，本身**并不集成**任何平台的任何音源，所有的搜索、播放、歌单导入等功能全部基于**插件**。这也就意味着，**只要可以在互联网上搜索到的音源，只要有对应的插件，你都可以使用本软件进行搜索、播放等功能。** 关于插件的详细说明请参考 [安卓版 Readme 的插件部分](https://github.com/maotoumao/MusicFree#%E6%8F%92%E4%BB%B6)。
 
 - 插件支持的功能：搜索（音乐、专辑、作者、歌单）、播放、查看专辑、查看作者详细信息、导入单曲、导入歌单、获取歌词等。
-
-- 定制化：本软件可以通过主题包定义软件外观及背景，详见下方主题包一节。
 
 - 无广告：基于 AGPL3.0 协议开源，将会保持免费。
 
@@ -39,6 +37,24 @@
 
 [示例插件仓库](https://github.com/maotoumao/MusicFreePlugins)，你可以根据[插件开发文档](https://musicfree.catcat.work/plugin/introduction.html) 开发适配于任意音源的插件。
 
+
+## 界面预览
+
+### 主界面
+
+![主界面](/assest/主界面.png)
+
+### 桌面歌词
+
+![歌词](/assest/歌词.png)
+
+### 迷你模式
+
+![迷你模式](/assest/迷你模式.png)
+
+### 托盘运行
+
+![托盘运行](/assest/托盘运行.png)
 
 
 ## 启动项目
@@ -53,6 +69,6 @@ flutter run
 ```bash
 cd flutter_app
 flutter build windows --release
-//nsis脚本，需要修改路径
+## nsis脚本，需要修改nisi路径
 powershell -ExecutionPolicy Bypass -File D:\musicWEP\flutter_app\windows\installer\build_installer.ps1 -MakensisPath "C:\Program Files (x86)\NSIS\makensis.exe"
 ```
