@@ -369,6 +369,14 @@ class PlayerController extends Notifier<PlayerState> {
     _scheduleSessionSave(immediate: true);
   }
 
+  Future<void> prepareForExit() async {
+    _sessionSaveTimer?.cancel();
+    try {
+      await _adapter.pause();
+    } catch (_) {}
+    await _persistSession();
+  }
+
   Future<void> _loadCurrentTrack({
     required bool playWhenReady,
     Duration? resumeAt,

@@ -81,6 +81,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   bool _isMaximized = false;
   bool _isFullScreen = false;
   bool _trayReady = false;
+  bool _exitingApplication = false;
 
   static const String _trayIconAsset = 'windows/runner/resources/app_icon.ico';
 
@@ -348,14 +349,22 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   }
 
   Future<void> _exitApplication() async {
-    try {
-      if (_trayReady) {
-        await trayManager.destroy();
-      }
-    } catch (_) {
-      // ignore tray teardown failures on exit
+    if (_exitingApplication) {
+      return;
     }
-    await windowManager.destroy();
+    _exitingApplication = true;
+    try {
+      await ref
+          .read(playerControllerProvider.notifier)
+          .prepareForExit()
+          .timeout(const Duration(milliseconds: 180));
+    } catch (_) {
+      // ignore player shutdown timeout on fast exit
+    }
+    if (_trayReady) {
+      unawaited(trayManager.destroy());
+    }
+    exit(0);
   }
 }
 
