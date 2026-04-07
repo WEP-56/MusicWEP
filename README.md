@@ -82,3 +82,6 @@ flutter build windows --release
 ## nsis脚本，需要修改nisi路径
 powershell -ExecutionPolicy Bypass -File D:\musicWEP\flutter_app\windows\installer\build_installer.ps1 -MakensisPath "C:\Program Files (x86)\NSIS\makensis.exe"
 ```
+
+## 认可社区
+https://linux.do/
