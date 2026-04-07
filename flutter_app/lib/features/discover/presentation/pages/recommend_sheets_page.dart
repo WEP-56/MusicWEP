@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/media/media_models.dart';
 import '../../../../shared/ui/app_shell.dart';
+import '../../../../shared/ui/horizontal_item_scroller.dart';
 import '../../../media/domain/media_route_state.dart';
 import '../../../media/media_providers.dart';
 import '../../../plugins/domain/plugin.dart';
@@ -200,42 +201,36 @@ class _PluginTabBar extends StatelessWidget {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: plugins.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final plugin = plugins[index];
-          final selected = plugin.storageKey == selectedPluginId;
-          return InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: () => onSelected(plugin.storageKey),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: selected
-                    ? softAccent
-                    : theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: selected ? accent : theme.dividerColor,
-                ),
-              ),
-              child: Text(
-                plugin.displayName,
-                style: TextStyle(
-                  color: selected ? accent : theme.colorScheme.onSurfaceVariant,
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
+    return HorizontalItemScroller(
+      height: 46,
+      itemCount: plugins.length,
+      itemBuilder: (context, index) {
+        final plugin = plugins[index];
+        final selected = plugin.storageKey == selectedPluginId;
+        return InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => onSelected(plugin.storageKey),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: selected
+                  ? softAccent
+                  : theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: selected ? accent : theme.dividerColor),
+            ),
+            child: Text(
+              plugin.displayName,
+              style: TextStyle(
+                color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
