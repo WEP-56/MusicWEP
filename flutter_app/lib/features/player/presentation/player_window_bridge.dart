@@ -79,9 +79,10 @@ class _PlayerWindowBridgeState extends ConsumerState<PlayerWindowBridge> {
         case 'close_lyric':
           controller.toggleDesktopLyric();
           break;
-        case 'close_mini':
+        case 'restore_main_from_mini':
+          _miniModeWindow = null;
+          _lastSyncedMiniModePayload = null;
           controller.setMiniModeVisible(false);
-          await _closeMiniModeWindow();
           await _showMainWindow();
           break;
       }
@@ -110,12 +111,8 @@ class _PlayerWindowBridgeState extends ConsumerState<PlayerWindowBridge> {
       await _pushMiniModeState(state);
       await _hideMainWindow();
     } else {
-      if (_miniModeWindow == null) {
-        return;
-      }
       _lastSyncedMiniModePayload = null;
-      await _closeMiniModeWindow();
-      await _showMainWindow();
+      _miniModeWindow = null;
     }
   }
 
@@ -254,17 +251,6 @@ class _PlayerWindowBridgeState extends ConsumerState<PlayerWindowBridge> {
     } catch (_) {}
   }
 
-  Future<void> _closeMiniModeWindow() async {
-    final window = _miniModeWindow;
-    _miniModeWindow = null;
-    if (window == null) {
-      return;
-    }
-    try {
-      await window.invokeMethod('window_close');
-    } catch (_) {}
-  }
-
   Future<void> _hideMainWindow() async {
     try {
       await windowManager.hide();
@@ -274,6 +260,9 @@ class _PlayerWindowBridgeState extends ConsumerState<PlayerWindowBridge> {
 
   Future<void> _showMainWindow() async {
     try {
+      if (await windowManager.isMinimized()) {
+        await windowManager.restore();
+      }
       await windowManager.show();
       await windowManager.focus();
       await windowManager.setSkipTaskbar(false);

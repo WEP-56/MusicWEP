@@ -12,7 +12,9 @@ import '../../features/player/domain/player_models.dart';
 import '../../features/player/player_providers.dart';
 
 class SharedBottomPlayerBar extends ConsumerStatefulWidget {
-  const SharedBottomPlayerBar({super.key});
+  const SharedBottomPlayerBar({super.key, this.backgroundActive = false});
+
+  final bool backgroundActive;
 
   @override
   ConsumerState<SharedBottomPlayerBar> createState() =>
@@ -42,7 +44,11 @@ class _SharedBottomPlayerBarState extends ConsumerState<SharedBottomPlayerBar> {
     return Container(
       height: 82,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: Theme.of(context).colorScheme.surface.withValues(
+          alpha: widget.backgroundActive
+              ? (Theme.of(context).brightness == Brightness.dark ? 0.56 : 0.44)
+              : 1,
+        ),
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
       ),

@@ -150,7 +150,7 @@ class _DesktopMiniModeWindowAppState extends State<DesktopMiniModeWindowApp>
           }
           return true;
         case 'window_close':
-          await windowManager.close();
+          await _closeMiniModeWindow();
           return true;
         default:
           throw MissingPluginException('Unknown method ${call.method}');
@@ -187,6 +187,23 @@ class _DesktopMiniModeWindowAppState extends State<DesktopMiniModeWindowApp>
     await _mainWindow!.invokeMethod('player_control', <String, dynamic>{
       'action': action,
     });
+  }
+
+  Future<void> _exitMiniMode() async {
+    try {
+      await _sendControl('restore_main_from_mini');
+    } catch (_) {}
+    await _closeMiniModeWindow();
+  }
+
+  Future<void> _closeMiniModeWindow() async {
+    try {
+      await windowManager.setAlwaysOnTop(false);
+    } catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    try {
+      await windowManager.close();
+    } catch (_) {}
   }
 
   @override
@@ -292,7 +309,7 @@ class _DesktopMiniModeWindowAppState extends State<DesktopMiniModeWindowApp>
                           child: IgnorePointer(
                             ignoring: !_hovering,
                             child: InkWell(
-                              onTap: () => _sendControl('close_mini'),
+                              onTap: _exitMiniMode,
                               borderRadius: BorderRadius.circular(999),
                               child: const SizedBox(
                                 width: 24,

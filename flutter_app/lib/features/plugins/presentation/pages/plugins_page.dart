@@ -69,7 +69,6 @@ class PluginsPage extends ConsumerWidget {
               Expanded(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
                     border: Border.all(color: theme.dividerColor),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -174,7 +173,7 @@ class _PluginTableHeader extends StatelessWidget {
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
+        color: AppTheme.translucentSurfaceVariant(context),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(

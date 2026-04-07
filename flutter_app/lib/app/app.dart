@@ -30,8 +30,8 @@ class MusicWEPApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'MusicWEP',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(themeSettings.preset),
-      darkTheme: AppTheme.dark(themeSettings.preset),
+      theme: AppTheme.light(themeSettings.activePreset),
+      darkTheme: AppTheme.dark(themeSettings.activePreset),
       themeMode: themeSettings.mode,
       routerConfig: ref.watch(appRouterProvider),
       builder: (context, child) {

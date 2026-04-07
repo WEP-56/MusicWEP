@@ -521,12 +521,16 @@ class _MusicResultsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      padding: const EdgeInsets.all(0),
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         children: <Widget>[
           const _MusicResultsHeader(),
-          const Divider(height: 1),
+          Divider(height: 1, color: theme.dividerColor),
           Expanded(
             child: ListView.builder(
               itemCount: musicItems.length,
@@ -567,6 +571,10 @@ class _MusicResultsHeader extends StatelessWidget {
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppTheme.translucentSurfaceVariant(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      ),
       child: Row(
         children: <Widget>[
           SizedBox(width: 54),
@@ -607,9 +615,14 @@ class _MusicResultRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
-    final rowBackground = index.isEven
-        ? theme.colorScheme.surfaceContainerLow
-        : theme.colorScheme.surface;
+    final rowBackground = AppTheme.translucentRowStripe(
+      context,
+      alternate: index.isEven,
+      lightBaseAlpha: 0.12,
+      lightAlternateAlpha: 0.2,
+      darkBaseAlpha: 0.08,
+      darkAlternateAlpha: 0.14,
+    );
     final textColor = theme.colorScheme.onSurface;
     final secondaryColor = theme.colorScheme.onSurfaceVariant;
     return GestureDetector(

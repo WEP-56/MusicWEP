@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path/path.dart' as path_util;
 import 'package:window_manager/window_manager.dart';
 
 import '../../app/theme/app_theme.dart';
+import '../../app/theme/theme_controller.dart';
 import '../../app/theme/theme_customizer.dart';
 import '../../core/media/media_constants.dart';
 import '../../core/media/media_models.dart';
@@ -14,7 +20,7 @@ import '../../features/plugins/domain/plugin.dart';
 import '../../features/plugins/plugin_providers.dart';
 import 'bottom_player_bar.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
     required this.title,
@@ -43,16 +49,25 @@ class AppShell extends StatelessWidget {
       ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final path = GoRouterState.of(context).uri.path;
     final compact = MediaQuery.of(context).size.width < 980;
     final theme = Theme.of(context);
     final shellBackground = theme.scaffoldBackgroundColor;
-    final panelBackground = theme.colorScheme.surface;
-    final headerBackground = theme.brightness == Brightness.dark
-        ? theme.colorScheme.surfaceContainer
-        : Colors.white;
-    final borderColor = theme.dividerColor;
+    final themeSettings =
+        ref.watch(appThemeControllerProvider).valueOrNull ??
+        AppThemeSettings.defaults;
+    final appPaths = ref.watch(appPathsProvider).valueOrNull;
+    final activeBackground = themeSettings.activeCustomTheme?.background;
+    final backgroundMedia = activeBackground != null && appPaths != null
+        ? _ResolvedBackgroundMedia(
+            type: activeBackground.type,
+            path: path_util.join(
+              appPaths.appDataDirectory.path,
+              activeBackground.relativePath,
+            ),
+          )
+        : null;
 
     if (compact) {
       return Scaffold(
@@ -103,66 +118,38 @@ class AppShell extends StatelessWidget {
           children: <Widget>[
             const _TopBar(),
             Expanded(
-              child: Row(
-                children: <Widget>[
-                  _Sidebar(path: path),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Container(
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(
-                            color: headerBackground,
-                            border: Border(
-                              bottom: BorderSide(color: borderColor),
+              child: _ShellBackgroundSurface(
+                background: backgroundMedia,
+                child: Column(
+                  children: <Widget>[
+                    Expanded(
+                      child: Row(
+                        children: <Widget>[
+                          _Sidebar(
+                            path: path,
+                            backgroundActive: backgroundMedia != null,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                16,
+                                20,
+                                12,
+                              ),
+                              child: child,
                             ),
                           ),
-                          child: Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      title,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    if (subtitle.isNotEmpty)
-                                      Text(
-                                        subtitle,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              if (actions.isNotEmpty)
-                                Wrap(spacing: 8, children: actions),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            color: panelBackground,
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                            child: child,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    SharedBottomPlayerBar(
+                      backgroundActive: backgroundMedia != null,
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SharedBottomPlayerBar(),
           ],
         ),
       ),
@@ -188,6 +175,158 @@ class AppShell extends StatelessWidget {
       return 4;
     }
     return 0;
+  }
+}
+
+class _ShellBackgroundSurface extends StatelessWidget {
+  const _ShellBackgroundSurface({
+    required this.background,
+    required this.child,
+  });
+
+  final _ResolvedBackgroundMedia? background;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final shellSurface = theme.colorScheme.surface;
+    final backgroundOpacity = background == null
+        ? 1.0
+        : theme.brightness == Brightness.dark
+        ? 0.7
+        : 0.56;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        if (background != null)
+          Positioned.fill(
+            child: _BackgroundMediaLayer(
+              background: background!,
+              fallbackColor: shellSurface,
+            ),
+          ),
+        Positioned.fill(
+          child: ColoredBox(
+            color: shellSurface.withValues(alpha: backgroundOpacity),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+class _ResolvedBackgroundMedia {
+  const _ResolvedBackgroundMedia({required this.type, required this.path});
+
+  final AppThemeBackgroundType type;
+  final String path;
+}
+
+class _BackgroundMediaLayer extends StatelessWidget {
+  const _BackgroundMediaLayer({
+    required this.background,
+    required this.fallbackColor,
+  });
+
+  final _ResolvedBackgroundMedia background;
+  final Color fallbackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (background.type) {
+      AppThemeBackgroundType.image => Image.file(
+        File(background.path),
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          return ColoredBox(color: fallbackColor);
+        },
+      ),
+      AppThemeBackgroundType.video => _BackgroundVideoLayer(
+        path: background.path,
+        fallbackColor: fallbackColor,
+      ),
+    };
+  }
+}
+
+class _BackgroundVideoLayer extends StatefulWidget {
+  const _BackgroundVideoLayer({
+    required this.path,
+    required this.fallbackColor,
+  });
+
+  final String path;
+  final Color fallbackColor;
+
+  @override
+  State<_BackgroundVideoLayer> createState() => _BackgroundVideoLayerState();
+}
+
+class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
+  late final Player _player;
+  late final VideoController _controller;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = Player();
+    _controller = VideoController(_player);
+    _initialize();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BackgroundVideoLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _initialize();
+    }
+  }
+
+  Future<void> _initialize() async {
+    setState(() {
+      _hasError = false;
+    });
+    try {
+      await _player.setPlaylistMode(PlaylistMode.single);
+      await _player.setVolume(0);
+      await _player.open(Media(File(widget.path).uri.toString()), play: true);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hasError = true;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return ColoredBox(color: widget.fallbackColor);
+    }
+    return IgnorePointer(
+      child: Video(
+        controller: _controller,
+        fit: BoxFit.cover,
+        controls: NoVideoControls,
+        filterQuality: FilterQuality.medium,
+        pauseUponEnteringBackgroundMode: false,
+        wakelock: false,
+      ),
+    );
   }
 }
 
@@ -369,6 +508,7 @@ class _TopBarState extends ConsumerState<_TopBar> {
       ),
     );
   }
+
   Future<void> _showThemeCustomizer(BuildContext context) async {
     await showDialog<void>(
       context: context,
@@ -392,9 +532,10 @@ class _TopBarState extends ConsumerState<_TopBar> {
 }
 
 class _Sidebar extends ConsumerWidget {
-  const _Sidebar({required this.path});
+  const _Sidebar({required this.path, required this.backgroundActive});
 
   final String path;
+  final bool backgroundActive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -409,7 +550,11 @@ class _Sidebar extends ConsumerWidget {
     return Container(
       width: 220,
       decoration: BoxDecoration(
-        color: sideBackground,
+        color: backgroundActive
+            ? sideBackground.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.5 : 0.4,
+              )
+            : sideBackground,
         border: Border(right: BorderSide(color: borderColor)),
       ),
       child: Column(

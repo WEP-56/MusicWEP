@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 class AppThemePreset {
@@ -48,27 +46,216 @@ class AppThemePreset {
   ];
 
   static AppThemePreset fromId(String? id) {
-    return values.where((item) => item.id == id).firstOrNull ?? sunset;
+    return values.firstWhereOrNull((item) => item.id == id) ?? sunset;
+  }
+
+  static bool isBuiltInThemeId(String id) {
+    return values.any((item) => item.id == id);
+  }
+}
+
+enum AppThemeBackgroundType {
+  image,
+  video;
+
+  static AppThemeBackgroundType? fromJson(String? value) {
+    return switch (value) {
+      'image' => AppThemeBackgroundType.image,
+      'video' => AppThemeBackgroundType.video,
+      _ => null,
+    };
+  }
+
+  static AppThemeBackgroundType? fromPath(String path) {
+    final normalized = path.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (normalized.endsWith('.mp4') ||
+        normalized.endsWith('.mov') ||
+        normalized.endsWith('.mkv') ||
+        normalized.endsWith('.webm')) {
+      return AppThemeBackgroundType.video;
+    }
+    if (normalized.endsWith('.png') ||
+        normalized.endsWith('.jpg') ||
+        normalized.endsWith('.jpeg') ||
+        normalized.endsWith('.webp') ||
+        normalized.endsWith('.bmp') ||
+        normalized.endsWith('.gif')) {
+      return AppThemeBackgroundType.image;
+    }
+    return null;
+  }
+
+  String toJson() => name;
+
+  String get label => switch (this) {
+    AppThemeBackgroundType.image => '图片 / GIF',
+    AppThemeBackgroundType.video => '视频',
+  };
+}
+
+class AppThemeBackgroundData {
+  const AppThemeBackgroundData({
+    required this.type,
+    required this.relativePath,
+  });
+
+  final AppThemeBackgroundType type;
+  final String relativePath;
+
+  factory AppThemeBackgroundData.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      throw StateError('Background json is null');
+    }
+
+    final relativePath = json['relativePath']?.toString().trim() ?? '';
+    final type =
+        AppThemeBackgroundType.fromJson(json['type']?.toString()) ??
+        AppThemeBackgroundType.fromPath(relativePath);
+    if (relativePath.isEmpty || type == null) {
+      throw StateError('Background json is invalid');
+    }
+
+    return AppThemeBackgroundData(type: type, relativePath: relativePath);
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'type': type.toJson(),
+      'relativePath': relativePath,
+    };
+  }
+}
+
+class AppCustomThemeData {
+  const AppCustomThemeData({
+    required this.id,
+    required this.name,
+    required this.seedColorValue,
+    this.background,
+  });
+
+  final String id;
+  final String name;
+  final int seedColorValue;
+  final AppThemeBackgroundData? background;
+
+  Color get seedColor => Color(seedColorValue);
+
+  bool get hasBackground => background != null;
+
+  AppThemePreset get asPreset =>
+      AppThemePreset(id: id, label: name, seedColor: seedColor);
+
+  AppCustomThemeData copyWith({
+    String? id,
+    String? name,
+    int? seedColorValue,
+    AppThemeBackgroundData? background,
+    bool clearBackground = false,
+  }) {
+    return AppCustomThemeData(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      seedColorValue: seedColorValue ?? this.seedColorValue,
+      background: clearBackground ? null : (background ?? this.background),
+    );
+  }
+
+  factory AppCustomThemeData.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      throw StateError('Custom theme json is null');
+    }
+
+    final id = json['id']?.toString().trim() ?? '';
+    final name = json['name']?.toString().trim() ?? '';
+    final rawSeedColor = json['seedColorValue'];
+    final seedColorValue = rawSeedColor is int
+        ? rawSeedColor
+        : int.tryParse(rawSeedColor?.toString() ?? '') ??
+              AppThemePreset.sunset.seedColor.toARGB32();
+    final backgroundMap = switch (json['background']) {
+      final Map<String, dynamic> value => value,
+      final Map value => value.map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
+      _ => null,
+    };
+
+    AppThemeBackgroundData? background;
+    if (backgroundMap != null) {
+      try {
+        background = AppThemeBackgroundData.fromJson(backgroundMap);
+      } catch (_) {
+        background = null;
+      }
+    }
+
+    if (id.isEmpty || name.isEmpty) {
+      throw StateError('Custom theme json is invalid');
+    }
+
+    return AppCustomThemeData(
+      id: id,
+      name: name,
+      seedColorValue: seedColorValue,
+      background: background,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'seedColorValue': seedColorValue,
+      if (background != null) 'background': background!.toJson(),
+    };
   }
 }
 
 class AppThemeSettings {
-  const AppThemeSettings({required this.mode, required this.presetId});
+  const AppThemeSettings({
+    required this.mode,
+    required this.activeThemeId,
+    required this.customThemes,
+  });
 
   final ThemeMode mode;
-  final String presetId;
+  final String activeThemeId;
+  final List<AppCustomThemeData> customThemes;
 
   static const AppThemeSettings defaults = AppThemeSettings(
     mode: ThemeMode.light,
-    presetId: 'sunset',
+    activeThemeId: 'sunset',
+    customThemes: <AppCustomThemeData>[],
   );
 
-  AppThemePreset get preset => AppThemePreset.fromId(presetId);
+  bool get hasCustomThemes => customThemes.isNotEmpty;
 
-  AppThemeSettings copyWith({ThemeMode? mode, String? presetId}) {
+  AppCustomThemeData? get activeCustomTheme =>
+      customThemes.firstWhereOrNull((theme) => theme.id == activeThemeId);
+
+  bool get usesCustomTheme => activeCustomTheme != null;
+
+  AppThemePreset get activePreset =>
+      activeCustomTheme?.asPreset ?? AppThemePreset.fromId(activeThemeId);
+
+  AppThemeSettings copyWith({
+    ThemeMode? mode,
+    String? activeThemeId,
+    List<AppCustomThemeData>? customThemes,
+  }) {
+    final nextCustomThemes = customThemes ?? this.customThemes;
+    final resolvedActiveThemeId = _resolveActiveThemeId(
+      activeThemeId ?? this.activeThemeId,
+      nextCustomThemes,
+    );
     return AppThemeSettings(
       mode: mode ?? this.mode,
-      presetId: presetId ?? this.presetId,
+      activeThemeId: resolvedActiveThemeId,
+      customThemes: List<AppCustomThemeData>.unmodifiable(nextCustomThemes),
     );
   }
 
@@ -76,13 +263,34 @@ class AppThemeSettings {
     if (json == null) {
       return defaults;
     }
+
+    final customThemes = <AppCustomThemeData>[
+      ..._parseCustomThemes(json['customThemes']),
+    ];
+
+    final legacyCustomTheme = _parseLegacyCustomTheme(json['customTheme']);
+    if (legacyCustomTheme != null &&
+        customThemes.every((item) => item.id != legacyCustomTheme.id)) {
+      customThemes.add(legacyCustomTheme);
+    }
+
+    final rawActiveThemeId =
+        json['activeThemeId']?.toString() ??
+        json['presetId']?.toString() ??
+        defaults.activeThemeId;
+    final resolvedActiveThemeId = _resolveActiveThemeId(
+      rawActiveThemeId,
+      customThemes,
+    );
+
     return AppThemeSettings(
       mode: switch (json['mode']?.toString()) {
         'dark' => ThemeMode.dark,
         'system' => ThemeMode.system,
         _ => ThemeMode.light,
       },
-      presetId: AppThemePreset.fromId(json['presetId']?.toString()).id,
+      activeThemeId: resolvedActiveThemeId,
+      customThemes: List<AppCustomThemeData>.unmodifiable(customThemes),
     );
   }
 
@@ -93,8 +301,97 @@ class AppThemeSettings {
         ThemeMode.system => 'system',
         ThemeMode.light => 'light',
       },
-      'presetId': preset.id,
+      'activeThemeId': activeThemeId,
+      'customThemes': customThemes
+          .map((theme) => theme.toJson())
+          .toList(growable: false),
     };
+  }
+
+  static List<AppCustomThemeData> _parseCustomThemes(Object? raw) {
+    if (raw is! List) {
+      return const <AppCustomThemeData>[];
+    }
+
+    return raw
+        .map(
+          (item) => switch (item) {
+            final Map<String, dynamic> value => value,
+            final Map value => value.map(
+              (key, value) => MapEntry(key.toString(), value),
+            ),
+            _ => null,
+          },
+        )
+        .whereType<Map<String, dynamic>>()
+        .map((item) {
+          try {
+            return AppCustomThemeData.fromJson(item);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<AppCustomThemeData>()
+        .toList(growable: false);
+  }
+
+  static AppCustomThemeData? _parseLegacyCustomTheme(Object? raw) {
+    final map = switch (raw) {
+      final Map<String, dynamic> value => value,
+      final Map value => value.map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
+      _ => null,
+    };
+    if (map == null) {
+      return null;
+    }
+
+    final rawSeedColor = map['seedColorValue'];
+    final seedColorValue = rawSeedColor is int
+        ? rawSeedColor
+        : int.tryParse(rawSeedColor?.toString() ?? '') ??
+              AppThemePreset.sunset.seedColor.toARGB32();
+
+    AppThemeBackgroundData? background;
+    final legacyPath = map['backgroundRelativePath']?.toString().trim();
+    final legacyType = AppThemeBackgroundType.fromPath(legacyPath ?? '');
+    if (legacyPath != null && legacyPath.isNotEmpty && legacyType != null) {
+      background = AppThemeBackgroundData(
+        type: legacyType,
+        relativePath: legacyPath,
+      );
+    }
+
+    return AppCustomThemeData(
+      id: 'custom-theme-legacy',
+      name: '自定义主题',
+      seedColorValue: seedColorValue,
+      background: background,
+    );
+  }
+
+  static String _resolveActiveThemeId(
+    String? rawActiveThemeId,
+    List<AppCustomThemeData> customThemes,
+  ) {
+    final candidate = rawActiveThemeId?.trim();
+    if (candidate == null || candidate.isEmpty) {
+      return defaults.activeThemeId;
+    }
+    if (AppThemePreset.isBuiltInThemeId(candidate)) {
+      return candidate;
+    }
+    if (candidate == 'custom' && customThemes.isNotEmpty) {
+      return customThemes.first.id;
+    }
+    final customTheme = customThemes.firstWhereOrNull(
+      (theme) => theme.id == candidate,
+    );
+    if (customTheme != null) {
+      return customTheme.id;
+    }
+    return defaults.activeThemeId;
   }
 }
 
@@ -190,6 +487,55 @@ class AppTheme {
 
   static AppThemeColors colorsOf(BuildContext context) {
     return Theme.of(context).extension<AppThemeColors>()!;
+  }
+
+  static Color translucentSurface(
+    BuildContext context, {
+    double lightAlpha = 0.74,
+    double darkAlpha = 0.82,
+  }) {
+    final theme = Theme.of(context);
+    return theme.colorScheme.surface.withValues(
+      alpha: theme.brightness == Brightness.dark ? darkAlpha : lightAlpha,
+    );
+  }
+
+  static Color translucentSurfaceVariant(
+    BuildContext context, {
+    double lightAlpha = 0.86,
+    double darkAlpha = 0.9,
+  }) {
+    final theme = Theme.of(context);
+    return theme.colorScheme.surfaceContainerHigh.withValues(
+      alpha: theme.brightness == Brightness.dark ? darkAlpha : lightAlpha,
+    );
+  }
+
+  static Color translucentSelection(
+    BuildContext context, {
+    double lightAlpha = 0.28,
+    double darkAlpha = 0.38,
+  }) {
+    final theme = Theme.of(context);
+    return theme.colorScheme.surfaceContainerHigh.withValues(
+      alpha: theme.brightness == Brightness.dark ? darkAlpha : lightAlpha,
+    );
+  }
+
+  static Color translucentRowStripe(
+    BuildContext context, {
+    required bool alternate,
+    double lightBaseAlpha = 0.14,
+    double lightAlternateAlpha = 0.24,
+    double darkBaseAlpha = 0.1,
+    double darkAlternateAlpha = 0.18,
+  }) {
+    final theme = Theme.of(context);
+    final alpha = switch (theme.brightness) {
+      Brightness.light => alternate ? lightAlternateAlpha : lightBaseAlpha,
+      Brightness.dark => alternate ? darkAlternateAlpha : darkBaseAlpha,
+    };
+    return theme.colorScheme.surfaceContainerLow.withValues(alpha: alpha);
   }
 
   static ThemeData _buildTheme({
@@ -290,6 +636,13 @@ class AppTheme {
   }
 }
 
-extension<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
+extension<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T item) test) {
+    for (final item in this) {
+      if (test(item)) {
+        return item;
+      }
+    }
+    return null;
+  }
 }

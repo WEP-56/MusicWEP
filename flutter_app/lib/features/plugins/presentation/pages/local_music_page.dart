@@ -671,7 +671,6 @@ class _GroupedTrackView extends StatelessWidget {
         Container(
           width: 280,
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
             border: Border.all(color: theme.dividerColor),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -692,7 +691,7 @@ class _GroupedTrackView extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: selected
-                        ? theme.colorScheme.surfaceContainerHigh
+                        ? AppTheme.translucentSelection(context)
                         : Colors.transparent,
                     border: Border(
                       left: BorderSide(
@@ -777,7 +776,6 @@ class _TrackTable extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
         border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -786,7 +784,7 @@ class _TrackTable extends StatelessWidget {
           Container(
             height: 42,
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
+              color: AppTheme.translucentSurfaceVariant(context),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(12),
               ),
@@ -843,7 +841,7 @@ class _TrackTable extends StatelessWidget {
                   child: Container(
                     height: 48,
                     color: selected
-                        ? theme.colorScheme.surfaceContainerHigh
+                        ? AppTheme.translucentSelection(context)
                         : Colors.transparent,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: Row(

@@ -10,7 +10,9 @@
 本项目基于 AGPL 3.0 协议开源，使用此项目时请遵守开源协议。  
 除此外，希望你在使用代码时已经了解以下额外说明：
 
-1. 打包、二次分发 **请保留代码出处**：上游项目：https://github.com/maotoumao/MusicFree  本项目：https://github.com/WEP-56/MusicWEP
+1. 打包、二次分发 **请保留代码出处**：
+- 上游项目：https://github.com/maotoumao/MusicFree  
+- 本项目：https://github.com/WEP-56/MusicWEP
 2. 请不要用于商业用途，合法合规使用代码；
 3. 如果开源协议变更，将在此 Github 仓库更新，不另行通知。
 ---

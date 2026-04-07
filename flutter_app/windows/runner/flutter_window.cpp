@@ -3,8 +3,23 @@
 #include <optional>
 
 #include <desktop_multi_window/desktop_multi_window_plugin.h>
+#include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
+#include <window_manager/window_manager_plugin.h>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+void RegisterDesktopMultiWindowPlugins(flutter::PluginRegistry* registry) {
+  DesktopMultiWindowPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("DesktopMultiWindowPlugin"));
+  ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("ScreenRetrieverWindowsPluginCApi"));
+  WindowManagerPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("WindowManagerPlugin"));
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -31,7 +46,7 @@ bool FlutterWindow::OnCreate() {
     auto *flutter_view_controller =
         reinterpret_cast<flutter::FlutterViewController *>(controller);
     auto *registry = flutter_view_controller->engine();
-    RegisterPlugins(registry);
+    RegisterDesktopMultiWindowPlugins(registry);
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
