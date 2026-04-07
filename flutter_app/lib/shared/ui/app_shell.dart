@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,8 @@ import '../../features/media/music_sheet_library_providers.dart';
 import '../../features/player/player_providers.dart';
 import '../../features/plugins/domain/plugin.dart';
 import '../../features/plugins/plugin_providers.dart';
+import '../../features/update/domain/app_update_models.dart';
+import '../../features/update/update_providers.dart';
 import 'bottom_player_bar.dart';
 
 class AppShell extends ConsumerWidget {
@@ -461,7 +464,10 @@ class _TopBarState extends ConsumerState<_TopBar> {
                 ),
               ),
               const Spacer(),
-              const _TopBarIcon(icon: Icons.auto_awesome_outlined),
+              _TopBarIcon(
+                icon: Icons.system_update_alt_rounded,
+                onTap: () => _showAppUpdateDialog(context),
+              ),
               const SizedBox(width: 6),
               _TopBarIcon(
                 icon: Icons.checkroom_outlined,
@@ -527,6 +533,215 @@ class _TopBarState extends ConsumerState<_TopBar> {
           ],
         );
       },
+    );
+  }
+
+  Future<void> _showAppUpdateDialog(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return _AppUpdateDialog(
+          onConfirmInstall: () => _showUpdateConfirmation(dialogContext),
+        );
+      },
+    );
+  }
+
+  Future<void> _showUpdateConfirmation(BuildContext context) async {
+    final updateStatus = ref.read(appUpdateControllerProvider).valueOrNull;
+    if (updateStatus == null || !updateStatus.hasUpdate) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('发现新版本'),
+          content: Text(
+            '当前版本 ${updateStatus.currentVersion}\n'
+            '最新版本 ${updateStatus.latestVersion ?? ''}\n\n'
+            '是否下载并启动安装器？',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('更新'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    unawaited(
+      ref.read(appUpdateControllerProvider.notifier).downloadAndInstallUpdate(),
+    );
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return const _AppUpdateProgressDialog();
+      },
+    );
+  }
+}
+
+class _AppUpdateDialog extends ConsumerWidget {
+  const _AppUpdateDialog({required this.onConfirmInstall});
+
+  final Future<void> Function() onConfirmInstall;
+
+  static const String _logoAsset = 'assets/logo.png';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final updateState = ref.watch(appUpdateControllerProvider);
+    final updateStatus = updateState.valueOrNull;
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  _logoAsset,
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                updateStatus?.currentVersion ?? '读取版本中...',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if ((updateStatus?.latestVersion?.isNotEmpty ?? false) &&
+                  updateStatus?.latestVersion !=
+                      updateStatus?.currentVersion) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  '最新版本 ${updateStatus!.latestVersion!}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: updateStatus == null || updateStatus.isBusy
+                      ? null
+                      : () async {
+                          final result = await ref
+                              .read(appUpdateControllerProvider.notifier)
+                              .checkForUpdates();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          if (result == AppUpdateCheckResult.updateAvailable) {
+                            await onConfirmInstall();
+                          }
+                        },
+                  child: Text(
+                    updateStatus?.stage == AppUpdateStage.checking
+                        ? '检测中...'
+                        : '检测更新',
+                  ),
+                ),
+              ),
+              if (updateState.isLoading) ...<Widget>[
+                const SizedBox(height: 12),
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ],
+              if ((updateStatus?.message?.isNotEmpty ?? false) ||
+                  (updateStatus?.errorDetails?.isNotEmpty ??
+                      false)) ...<Widget>[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    updateStatus?.message ?? updateStatus?.errorDetails ?? '',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if ((updateStatus?.errorDetails?.isNotEmpty ?? false) &&
+                    updateStatus?.message !=
+                        updateStatus?.errorDetails) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      updateStatus!.errorDetails!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppUpdateProgressDialog extends ConsumerWidget {
+  const _AppUpdateProgressDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final updateStatus = ref.watch(appUpdateControllerProvider).valueOrNull;
+    final progress = updateStatus?.progress;
+    final isError = updateStatus?.stage == AppUpdateStage.error;
+
+    if (isError) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const SizedBox.shrink();
+    }
+
+    return AlertDialog(
+      title: const Text('应用更新'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(updateStatus?.message ?? '正在准备更新...'),
+            const SizedBox(height: 14),
+            LinearProgressIndicator(value: progress),
+            const SizedBox(height: 10),
+            Text(
+              progress == null
+                  ? '正在获取下载进度...'
+                  : '${(progress * 100).clamp(0, 100).toStringAsFixed(0)}%',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
