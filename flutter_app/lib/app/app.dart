@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/window/window_visibility_provider.dart';
 import '../features/player/domain/player_models.dart';
 import '../features/player/player_providers.dart';
 import '../features/player/presentation/player_window_bridge.dart';
@@ -95,6 +96,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
         await windowManager.setPreventClose(true);
         final maximized = await windowManager.isMaximized();
         final fullScreen = await windowManager.isFullScreen();
+        ref.read(appWindowVisibilityProvider.notifier).state = true;
         await _setupTray();
         if (!mounted) {
           return;
@@ -200,6 +202,16 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   }
 
   @override
+  void onWindowMinimize() {
+    ref.read(appWindowVisibilityProvider.notifier).state = false;
+  }
+
+  @override
+  void onWindowRestore() {
+    ref.read(appWindowVisibilityProvider.notifier).state = true;
+  }
+
+  @override
   void onTrayIconMouseDown() {
     unawaited(_showMainWindow());
   }
@@ -253,6 +265,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
     await windowManager.show();
     await windowManager.focus();
     await windowManager.setSkipTaskbar(false);
+    ref.read(appWindowVisibilityProvider.notifier).state = true;
   }
 
   Future<void> _showTrayContextMenu() async {
@@ -346,6 +359,7 @@ class _DesktopWindowFrameState extends ConsumerState<_DesktopWindowFrame>
   Future<void> _hideToTray() async {
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
+    ref.read(appWindowVisibilityProvider.notifier).state = false;
   }
 
   Future<void> _exitApplication() async {

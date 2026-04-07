@@ -14,6 +14,7 @@ import '../../app/theme/theme_controller.dart';
 import '../../app/theme/theme_customizer.dart';
 import '../../core/media/media_constants.dart';
 import '../../core/media/media_models.dart';
+import '../../core/window/window_visibility_provider.dart';
 import '../../features/media/application/local_music_sheet_repository.dart';
 import '../../features/media/music_sheet_library_providers.dart';
 import '../../features/player/player_providers.dart';
@@ -181,7 +182,7 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _ShellBackgroundSurface extends StatelessWidget {
+class _ShellBackgroundSurface extends ConsumerStatefulWidget {
   const _ShellBackgroundSurface({
     required this.background,
     required this.child,
@@ -191,10 +192,74 @@ class _ShellBackgroundSurface extends StatelessWidget {
   final Widget child;
 
   @override
+  ConsumerState<_ShellBackgroundSurface> createState() =>
+      _ShellBackgroundSurfaceState();
+}
+
+class _ShellBackgroundSurfaceState
+    extends ConsumerState<_ShellBackgroundSurface>
+    with WindowListener {
+  bool _windowFocused = true;
+  bool _windowVisible = true;
+  bool _windowMinimized = false;
+  bool _listeningToWindowEvents = false;
+
+  bool get _shouldRenderBackground {
+    if (!Platform.isWindows) {
+      return true;
+    }
+    return _windowVisible && !_windowMinimized;
+  }
+
+  bool get _shouldAnimateBackground {
+    if (!Platform.isWindows) {
+      return true;
+    }
+    return _windowVisible && !_windowMinimized && _windowFocused;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeWindowState();
+  }
+
+  Future<void> _initializeWindowState() async {
+    if (!Platform.isWindows) {
+      return;
+    }
+    windowManager.addListener(this);
+    _listeningToWindowEvents = true;
+    final focused = await windowManager.isFocused();
+    final visible = await windowManager.isVisible();
+    final minimized = await windowManager.isMinimized();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _windowFocused = focused;
+      _windowVisible = visible;
+      _windowMinimized = minimized;
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_listeningToWindowEvents) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appWindowVisible = ref.watch(appWindowVisibilityProvider);
     final theme = Theme.of(context);
     final shellSurface = theme.colorScheme.surface;
-    final backgroundOpacity = background == null
+    final effectiveBackground = _shouldRenderBackground && appWindowVisible
+        ? widget.background
+        : null;
+    final backgroundOpacity = effectiveBackground == null
         ? 1.0
         : theme.brightness == Brightness.dark
         ? 0.7
@@ -203,11 +268,12 @@ class _ShellBackgroundSurface extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        if (background != null)
+        if (effectiveBackground != null)
           Positioned.fill(
             child: _BackgroundMediaLayer(
-              background: background!,
+              background: effectiveBackground,
               fallbackColor: shellSurface,
+              animateVideo: _shouldAnimateBackground,
             ),
           ),
         Positioned.fill(
@@ -215,9 +281,52 @@ class _ShellBackgroundSurface extends StatelessWidget {
             color: shellSurface.withValues(alpha: backgroundOpacity),
           ),
         ),
-        child,
+        widget.child,
       ],
     );
+  }
+
+  @override
+  void onWindowBlur() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _windowFocused = false;
+    });
+  }
+
+  @override
+  void onWindowFocus() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _windowFocused = true;
+    });
+  }
+
+  @override
+  void onWindowMinimize() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _windowMinimized = true;
+      _windowVisible = false;
+    });
+  }
+
+  @override
+  void onWindowRestore() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _windowMinimized = false;
+      _windowVisible = true;
+      _windowFocused = true;
+    });
   }
 }
 
@@ -232,26 +341,42 @@ class _BackgroundMediaLayer extends StatelessWidget {
   const _BackgroundMediaLayer({
     required this.background,
     required this.fallbackColor,
+    required this.animateVideo,
   });
 
   final _ResolvedBackgroundMedia background;
   final Color fallbackColor;
+  final bool animateVideo;
 
   @override
   Widget build(BuildContext context) {
     return switch (background.type) {
-      AppThemeBackgroundType.image => Image.file(
-        File(background.path),
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.medium,
-        gaplessPlayback: true,
-        errorBuilder: (context, error, stackTrace) {
-          return ColoredBox(color: fallbackColor);
+      AppThemeBackgroundType.image => LayoutBuilder(
+        builder: (context, constraints) {
+          final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+          final width = constraints.maxWidth.isFinite
+              ? (constraints.maxWidth * pixelRatio).round()
+              : null;
+          final height = constraints.maxHeight.isFinite
+              ? (constraints.maxHeight * pixelRatio).round()
+              : null;
+
+          return Image.file(
+            File(background.path),
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.low,
+            cacheWidth: width == null || width <= 0 ? null : width,
+            cacheHeight: height == null || height <= 0 ? null : height,
+            errorBuilder: (context, error, stackTrace) {
+              return ColoredBox(color: fallbackColor);
+            },
+          );
         },
       ),
       AppThemeBackgroundType.video => _BackgroundVideoLayer(
         path: background.path,
         fallbackColor: fallbackColor,
+        playing: animateVideo,
       ),
     };
   }
@@ -261,25 +386,33 @@ class _BackgroundVideoLayer extends StatefulWidget {
   const _BackgroundVideoLayer({
     required this.path,
     required this.fallbackColor,
+    required this.playing,
   });
 
   final String path;
   final Color fallbackColor;
+  final bool playing;
 
   @override
   State<_BackgroundVideoLayer> createState() => _BackgroundVideoLayerState();
 }
 
 class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
-  late final Player _player;
-  late final VideoController _controller;
+  static const Duration _backgroundVideoRecycleInterval = Duration(minutes: 6);
+
+  Player? _player;
+  VideoController? _controller;
+  StreamSubscription<bool>? _completedSubscription;
+  Timer? _recycleTimer;
   bool _hasError = false;
+  int? _lastOutputWidth;
+  int? _lastOutputHeight;
+  bool _playbackSyncInProgress = false;
+  bool _rebuildInProgress = false;
 
   @override
   void initState() {
     super.initState();
-    _player = Player();
-    _controller = VideoController(_player);
     _initialize();
   }
 
@@ -288,6 +421,10 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path) {
       _initialize();
+      return;
+    }
+    if (oldWidget.playing != widget.playing) {
+      unawaited(_syncPlaybackState());
     }
   }
 
@@ -296,9 +433,10 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
       _hasError = false;
     });
     try {
-      await _player.setPlaylistMode(PlaylistMode.single);
-      await _player.setVolume(0);
-      await _player.open(Media(File(widget.path).uri.toString()), play: true);
+      await _rebuildVideoBackend(
+        resumePosition: Duration.zero,
+        forcePlay: widget.playing,
+      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -309,26 +447,189 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
     }
   }
 
+  Future<void> _syncPlaybackState() async {
+    final player = _player;
+    if (player == null || _rebuildInProgress) {
+      return;
+    }
+    if (_playbackSyncInProgress) {
+      return;
+    }
+    _playbackSyncInProgress = true;
+    try {
+      if (widget.playing) {
+        await player.play();
+      } else {
+        await player.pause();
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hasError = true;
+      });
+    } finally {
+      _playbackSyncInProgress = false;
+    }
+  }
+
+  Future<void> _rebuildVideoBackend({
+    Duration? resumePosition,
+    bool? forcePlay,
+  }) async {
+    if (_rebuildInProgress) {
+      return;
+    }
+    _rebuildInProgress = true;
+
+    final currentPlayer = _player;
+    final targetPosition = resumePosition ?? currentPlayer?.state.position;
+
+    try {
+      final nextPlayer = Player(
+        configuration: const PlayerConfiguration(
+          muted: true,
+          bufferSize: 4 * 1024 * 1024,
+          title: 'MusicWEP Background',
+        ),
+      );
+      final nextController = VideoController(
+        nextPlayer,
+        configuration: const VideoControllerConfiguration(scale: 0.75),
+      );
+
+      await nextPlayer.setPlaylistMode(PlaylistMode.none);
+      await nextPlayer.open(
+        Media(File(widget.path).uri.toString()),
+        play: false,
+      );
+
+      if (targetPosition != null && targetPosition > Duration.zero) {
+        try {
+          await nextPlayer.seek(targetPosition);
+        } catch (_) {
+          // Ignore seek failures for short or non-seekable files.
+        }
+      }
+
+      if ((forcePlay ?? widget.playing) == true) {
+        await nextPlayer.play();
+      }
+
+      try {
+        await nextController.waitUntilFirstFrameRendered.timeout(
+          const Duration(seconds: 2),
+        );
+      } catch (_) {
+        // Continue even if the first-frame signal is delayed.
+      }
+
+      await _completedSubscription?.cancel();
+      _recycleTimer?.cancel();
+
+      _completedSubscription = nextPlayer.stream.completed.listen((completed) {
+        if (!completed || !mounted) {
+          return;
+        }
+        unawaited(
+          _rebuildVideoBackend(
+            resumePosition: Duration.zero,
+            forcePlay: widget.playing,
+          ),
+        );
+      });
+
+      _recycleTimer = Timer.periodic(_backgroundVideoRecycleInterval, (_) {
+        if (!mounted || !widget.playing) {
+          return;
+        }
+        unawaited(_rebuildVideoBackend(forcePlay: true));
+      });
+
+      if (!mounted) {
+        await nextPlayer.dispose();
+        return;
+      }
+
+      final previousPlayer = _player;
+      setState(() {
+        _player = nextPlayer;
+        _controller = nextController;
+        _hasError = false;
+      });
+
+      if (previousPlayer != null && !identical(previousPlayer, nextPlayer)) {
+        await previousPlayer.dispose();
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hasError = true;
+      });
+      rethrow;
+    } finally {
+      _rebuildInProgress = false;
+    }
+  }
+
+  void _updateVideoOutputSize(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    final controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final width = constraints.maxWidth.isFinite
+        ? (constraints.maxWidth * pixelRatio).round()
+        : null;
+    final height = constraints.maxHeight.isFinite
+        ? (constraints.maxHeight * pixelRatio).round()
+        : null;
+    if (width == null ||
+        height == null ||
+        width <= 0 ||
+        height <= 0 ||
+        (_lastOutputWidth == width && _lastOutputHeight == height)) {
+      return;
+    }
+    _lastOutputWidth = width;
+    _lastOutputHeight = height;
+    unawaited(controller.setSize(width: width, height: height));
+  }
+
   @override
   void dispose() {
-    _player.dispose();
+    _completedSubscription?.cancel();
+    _recycleTimer?.cancel();
+    _player?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError) {
+    final controller = _controller;
+    if (_hasError || controller == null) {
       return ColoredBox(color: widget.fallbackColor);
     }
-    return IgnorePointer(
-      child: Video(
-        controller: _controller,
-        fit: BoxFit.cover,
-        controls: NoVideoControls,
-        filterQuality: FilterQuality.medium,
-        pauseUponEnteringBackgroundMode: false,
-        wakelock: false,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _updateVideoOutputSize(context, constraints);
+        return IgnorePointer(
+          child: Video(
+            controller: controller,
+            fit: BoxFit.cover,
+            controls: NoVideoControls,
+            filterQuality: FilterQuality.low,
+            pauseUponEnteringBackgroundMode: true,
+            wakelock: false,
+          ),
+        );
+      },
     );
   }
 }
