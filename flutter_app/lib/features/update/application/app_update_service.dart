@@ -128,46 +128,18 @@ class AppUpdateService {
     return targetPath;
   }
 
-  Future<void> launchInstallerAfterExit({
-    required String installerPath,
-    required int currentProcessId,
-  }) async {
-    final scriptDirectory = Directory(
-      path.join(_appPaths.cacheDirectory.path, 'updates'),
-    );
-    if (!await scriptDirectory.exists()) {
-      await scriptDirectory.create(recursive: true);
+  Future<void> launchInstaller(String installerPath) async {
+    final installerFile = File(installerPath);
+    if (!await installerFile.exists()) {
+      throw FileSystemException('安装包不存在', installerPath);
     }
 
-    final scriptFile = File(
-      path.join(scriptDirectory.path, 'launch_musicwep_update.ps1'),
+    await Process.start(
+      installerPath,
+      const <String>[],
+      mode: ProcessStartMode.detached,
+      workingDirectory: installerFile.parent.path,
     );
-    final escapedInstallerPath = installerPath.replaceAll("'", "''");
-    final script =
-        '''
-\$installerPath = '$escapedInstallerPath'
-\$targetPid = $currentProcessId
-
-for (\$i = 0; \$i -lt 2400; \$i++) {
-  if (-not (Get-Process -Id \$targetPid -ErrorAction SilentlyContinue)) {
-    break
-  }
-  Start-Sleep -Milliseconds 250
-}
-
-Start-Process -FilePath \$installerPath
-''';
-    await scriptFile.writeAsString(script, flush: true);
-
-    await Process.start('powershell.exe', <String>[
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-WindowStyle',
-      'Hidden',
-      '-File',
-      scriptFile.path,
-    ], mode: ProcessStartMode.detached);
   }
 
   void dispose() {

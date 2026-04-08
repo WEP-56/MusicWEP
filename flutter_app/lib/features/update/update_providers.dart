@@ -140,12 +140,8 @@ class AppUpdateController extends AsyncNotifier<AppUpdateStatus> {
         ),
       );
 
-      await _service.launchInstallerAfterExit(
-        installerPath: installerPath,
-        currentProcessId: pid,
-      );
-
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await _service.launchInstaller(installerPath);
+      await Future<void>.delayed(const Duration(milliseconds: 800));
       exit(0);
     } catch (error) {
       state = AsyncData(
