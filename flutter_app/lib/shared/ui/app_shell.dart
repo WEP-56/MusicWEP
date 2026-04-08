@@ -24,8 +24,26 @@ import '../../features/update/domain/app_update_models.dart';
 import '../../features/update/update_providers.dart';
 import 'bottom_player_bar.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends StatelessWidget {
   const AppShell({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.actions = const <Widget>[],
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+class AppShellScaffold extends ConsumerWidget {
+  const AppShellScaffold({
     super.key,
     required this.title,
     required this.subtitle,
@@ -260,6 +278,11 @@ class _ShellBackgroundSurfaceState
     final effectiveBackground = _shouldRenderBackground && appWindowVisible
         ? widget.background
         : null;
+    final allowVideoMaintenance =
+        !appWindowVisible ||
+        !_windowVisible ||
+        _windowMinimized ||
+        !_windowFocused;
     final backgroundOpacity = effectiveBackground == null
         ? 1.0
         : theme.brightness == Brightness.dark
@@ -275,6 +298,7 @@ class _ShellBackgroundSurfaceState
               background: effectiveBackground,
               fallbackColor: shellSurface,
               animateVideo: _shouldAnimateBackground,
+              allowVideoMaintenance: allowVideoMaintenance,
             ),
           ),
         Positioned.fill(
@@ -343,11 +367,13 @@ class _BackgroundMediaLayer extends StatelessWidget {
     required this.background,
     required this.fallbackColor,
     required this.animateVideo,
+    required this.allowVideoMaintenance,
   });
 
   final _ResolvedBackgroundMedia background;
   final Color fallbackColor;
   final bool animateVideo;
+  final bool allowVideoMaintenance;
 
   @override
   Widget build(BuildContext context) {
@@ -378,6 +404,7 @@ class _BackgroundMediaLayer extends StatelessWidget {
         path: background.path,
         fallbackColor: fallbackColor,
         playing: animateVideo,
+        allowMaintenance: allowVideoMaintenance,
       ),
     };
   }
@@ -388,11 +415,13 @@ class _BackgroundVideoLayer extends StatefulWidget {
     required this.path,
     required this.fallbackColor,
     required this.playing,
+    required this.allowMaintenance,
   });
 
   final String path;
   final Color fallbackColor;
   final bool playing;
+  final bool allowMaintenance;
 
   @override
   State<_BackgroundVideoLayer> createState() => _BackgroundVideoLayerState();
@@ -400,6 +429,7 @@ class _BackgroundVideoLayer extends StatefulWidget {
 
 class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
   static const Duration _backgroundVideoRecycleInterval = Duration(minutes: 6);
+  static _CachedBackgroundVideoBackend? _cachedBackend;
 
   Player? _player;
   VideoController? _controller;
@@ -408,6 +438,7 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
   bool _hasError = false;
   int? _lastOutputWidth;
   int? _lastOutputHeight;
+  bool _pendingRecycle = false;
   bool _playbackSyncInProgress = false;
   bool _rebuildInProgress = false;
 
@@ -421,11 +452,17 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
   void didUpdateWidget(covariant _BackgroundVideoLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path) {
+      _pendingRecycle = false;
       _initialize();
       return;
     }
     if (oldWidget.playing != widget.playing) {
       unawaited(_syncPlaybackState());
+    }
+    if ((!oldWidget.allowMaintenance && widget.allowMaintenance) &&
+        _pendingRecycle) {
+      _pendingRecycle = false;
+      unawaited(_rebuildVideoBackend(forcePlay: widget.playing));
     }
   }
 
@@ -434,6 +471,18 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
       _hasError = false;
     });
     try {
+      final reused = _tryReuseCachedBackend();
+      if (reused) {
+        _attachPlaybackObservers();
+        await _syncPlaybackState();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _hasError = false;
+        });
+        return;
+      }
       await _rebuildVideoBackend(
         resumePosition: Duration.zero,
         forcePlay: widget.playing,
@@ -446,6 +495,17 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
         _hasError = true;
       });
     }
+  }
+
+  bool _tryReuseCachedBackend() {
+    final cachedBackend = _cachedBackend;
+    if (cachedBackend == null || cachedBackend.path != widget.path) {
+      return false;
+    }
+    cachedBackend.disposeTimer?.cancel();
+    _player = cachedBackend.player;
+    _controller = cachedBackend.controller;
+    return true;
   }
 
   Future<void> _syncPlaybackState() async {
@@ -500,7 +560,7 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
         configuration: const VideoControllerConfiguration(scale: 0.75),
       );
 
-      await nextPlayer.setPlaylistMode(PlaylistMode.none);
+      await nextPlayer.setPlaylistMode(PlaylistMode.single);
       await nextPlayer.open(
         Media(File(widget.path).uri.toString()),
         play: false,
@@ -526,28 +586,6 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
         // Continue even if the first-frame signal is delayed.
       }
 
-      await _completedSubscription?.cancel();
-      _recycleTimer?.cancel();
-
-      _completedSubscription = nextPlayer.stream.completed.listen((completed) {
-        if (!completed || !mounted) {
-          return;
-        }
-        unawaited(
-          _rebuildVideoBackend(
-            resumePosition: Duration.zero,
-            forcePlay: widget.playing,
-          ),
-        );
-      });
-
-      _recycleTimer = Timer.periodic(_backgroundVideoRecycleInterval, (_) {
-        if (!mounted || !widget.playing) {
-          return;
-        }
-        unawaited(_rebuildVideoBackend(forcePlay: true));
-      });
-
       if (!mounted) {
         await nextPlayer.dispose();
         return;
@@ -559,9 +597,15 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
         _controller = nextController;
         _hasError = false;
       });
+      _cachedBackend = _CachedBackgroundVideoBackend(
+        path: widget.path,
+        player: nextPlayer,
+        controller: nextController,
+      );
+      _attachPlaybackObservers();
 
       if (previousPlayer != null && !identical(previousPlayer, nextPlayer)) {
-        await previousPlayer.dispose();
+        await _safeDisposePlayer(previousPlayer);
       }
     } catch (_) {
       if (!mounted) {
@@ -574,6 +618,27 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
     } finally {
       _rebuildInProgress = false;
     }
+  }
+
+  void _attachPlaybackObservers() {
+    if (_player == null) {
+      return;
+    }
+    _completedSubscription?.cancel();
+    _recycleTimer?.cancel();
+    _completedSubscription = null;
+
+    _recycleTimer = Timer.periodic(_backgroundVideoRecycleInterval, (_) {
+      if (!mounted || !widget.playing) {
+        return;
+      }
+      if (widget.allowMaintenance) {
+        _pendingRecycle = false;
+        unawaited(_rebuildVideoBackend(forcePlay: widget.playing));
+        return;
+      }
+      _pendingRecycle = true;
+    });
   }
 
   void _updateVideoOutputSize(
@@ -607,8 +672,37 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
   void dispose() {
     _completedSubscription?.cancel();
     _recycleTimer?.cancel();
-    _player?.dispose();
+    final player = _player;
+    final controller = _controller;
+    final cachedBackend = _cachedBackend;
+    if (player != null &&
+        controller != null &&
+        cachedBackend != null &&
+        identical(cachedBackend.player, player) &&
+        identical(cachedBackend.controller, controller)) {
+      cachedBackend.disposeTimer?.cancel();
+      cachedBackend.disposeTimer = Timer(const Duration(seconds: 2), () async {
+        if (!identical(_cachedBackend, cachedBackend)) {
+          return;
+        }
+        _cachedBackend = null;
+        await _safeDisposePlayer(cachedBackend.player);
+      });
+    } else {
+      unawaited(_safeDisposePlayer(_player));
+    }
     super.dispose();
+  }
+
+  Future<void> _safeDisposePlayer(Player? player) async {
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.dispose();
+    } catch (_) {
+      // Ignore duplicate disposal races from fast widget churn.
+    }
   }
 
   @override
@@ -623,7 +717,12 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
         return IgnorePointer(
           child: Video(
             controller: controller,
+            width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+            height: constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : null,
             fit: BoxFit.cover,
+            fill: widget.fallbackColor,
             controls: NoVideoControls,
             filterQuality: FilterQuality.low,
             pauseUponEnteringBackgroundMode: true,
@@ -633,6 +732,19 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
       },
     );
   }
+}
+
+class _CachedBackgroundVideoBackend {
+  _CachedBackgroundVideoBackend({
+    required this.path,
+    required this.player,
+    required this.controller,
+  });
+
+  final String path;
+  final Player player;
+  final VideoController controller;
+  Timer? disposeTimer;
 }
 
 class _TopBar extends ConsumerStatefulWidget {
@@ -1084,7 +1196,7 @@ class _Sidebar extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                ...AppShell._primaryDestinations.map(
+                ...AppShellScaffold._primaryDestinations.map(
                   (item) => _SidebarItem(
                     destination: item.path,
                     label: item.label,

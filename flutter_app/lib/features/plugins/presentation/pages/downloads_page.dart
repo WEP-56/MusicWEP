@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/ui/app_shell.dart';
 import '../../../downloads/domain/download_models.dart';
 import '../../../downloads/download_providers.dart';
-import '../../../../shared/ui/app_shell.dart';
 
 class DownloadsPage extends ConsumerWidget {
   const DownloadsPage({super.key});
@@ -15,11 +15,11 @@ class DownloadsPage extends ConsumerWidget {
     final downloadedTasks = ref.watch(downloadedTasksProvider);
     final downloadingTasks = ref.watch(downloadingTasksProvider);
 
-    return DefaultTabController(
-      length: 2,
-      child: AppShell(
-        title: '下载管理',
-        subtitle: '查看已下载歌曲和当前下载任务。',
+    return AppShell(
+      title: '下载管理',
+      subtitle: '查看已下载歌曲和当前下载任务。',
+      child: DefaultTabController(
+        length: 2,
         child: Builder(
           builder: (context) {
             if (tasksAsync.hasError && tasksAsync.valueOrNull == null) {
