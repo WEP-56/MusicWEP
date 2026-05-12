@@ -29,6 +29,9 @@ class PluginDiagnostics {
     this.logs = const <String>[],
     this.requiredPackages = const <String>[],
     this.missingPackages = const <String>[],
+    this.lastInvokeAt,
+    this.lastInvokeErrorMessage,
+    this.invokeFailureCount = 0,
   });
 
   final PluginParseStatus status;
@@ -38,6 +41,36 @@ class PluginDiagnostics {
   final List<String> logs;
   final List<String> requiredPackages;
   final List<String> missingPackages;
+  final DateTime? lastInvokeAt;
+  final String? lastInvokeErrorMessage;
+  final int invokeFailureCount;
+
+  PluginDiagnostics copyWith({
+    PluginParseStatus? status,
+    DateTime? checkedAt,
+    String? message,
+    String? stackTrace,
+    List<String>? logs,
+    List<String>? requiredPackages,
+    List<String>? missingPackages,
+    DateTime? lastInvokeAt,
+    String? lastInvokeErrorMessage,
+    int? invokeFailureCount,
+  }) {
+    return PluginDiagnostics(
+      status: status ?? this.status,
+      checkedAt: checkedAt ?? this.checkedAt,
+      message: message ?? this.message,
+      stackTrace: stackTrace ?? this.stackTrace,
+      logs: logs ?? this.logs,
+      requiredPackages: requiredPackages ?? this.requiredPackages,
+      missingPackages: missingPackages ?? this.missingPackages,
+      lastInvokeAt: lastInvokeAt ?? this.lastInvokeAt,
+      lastInvokeErrorMessage:
+          lastInvokeErrorMessage ?? this.lastInvokeErrorMessage,
+      invokeFailureCount: invokeFailureCount ?? this.invokeFailureCount,
+    );
+  }
 
   factory PluginDiagnostics.fromJson(Map<String, dynamic> json) {
     return PluginDiagnostics(
@@ -62,6 +95,9 @@ class PluginDiagnostics {
               .map((entry) => entry.toString())
               .where((entry) => entry.isNotEmpty)
               .toList(growable: false),
+      lastInvokeAt: DateTime.tryParse(json['lastInvokeAt'] as String? ?? ''),
+      lastInvokeErrorMessage: json['lastInvokeErrorMessage'] as String?,
+      invokeFailureCount: json['invokeFailureCount'] as int? ?? 0,
     );
   }
 
@@ -74,6 +110,9 @@ class PluginDiagnostics {
       'logs': logs,
       'requiredPackages': requiredPackages,
       'missingPackages': missingPackages,
+      'lastInvokeAt': lastInvokeAt?.toIso8601String(),
+      'lastInvokeErrorMessage': lastInvokeErrorMessage,
+      'invokeFailureCount': invokeFailureCount,
     };
   }
 }
@@ -149,6 +188,7 @@ class PluginMetaRecord {
     this.lastUpdateMessage,
     this.lastUpdatedAt,
     this.diagnostics,
+    this.userVariables = const <String, String>{},
   });
 
   factory PluginMetaRecord.initial() {
@@ -170,6 +210,7 @@ class PluginMetaRecord {
   final String? lastUpdateMessage;
   final DateTime? lastUpdatedAt;
   final PluginDiagnostics? diagnostics;
+  final Map<String, String> userVariables;
 
   PluginMetaRecord copyWith({
     bool? enabled,
@@ -179,6 +220,7 @@ class PluginMetaRecord {
     String? lastUpdateMessage,
     DateTime? lastUpdatedAt,
     PluginDiagnostics? diagnostics,
+    Map<String, String>? userVariables,
   }) {
     return PluginMetaRecord(
       enabled: enabled ?? this.enabled,
@@ -188,10 +230,19 @@ class PluginMetaRecord {
       lastUpdateMessage: lastUpdateMessage ?? this.lastUpdateMessage,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
       diagnostics: diagnostics ?? this.diagnostics,
+      userVariables: userVariables ?? this.userVariables,
     );
   }
 
   factory PluginMetaRecord.fromJson(Map<String, dynamic> json) {
+    final rawUserVariables = json['userVariables'];
+    final parsedUserVariables = <String, String>{};
+    if (rawUserVariables is Map) {
+      rawUserVariables.forEach((key, value) {
+        if (key == null) return;
+        parsedUserVariables[key.toString()] = value?.toString() ?? '';
+      });
+    }
     return PluginMetaRecord(
       enabled: json['enabled'] as bool? ?? true,
       order: json['order'] as int? ?? 0,
@@ -204,6 +255,7 @@ class PluginMetaRecord {
               json['diagnostics'] as Map<String, dynamic>,
             )
           : null,
+      userVariables: Map.unmodifiable(parsedUserVariables),
     );
   }
 
@@ -216,6 +268,7 @@ class PluginMetaRecord {
       'lastUpdateMessage': lastUpdateMessage,
       'lastUpdatedAt': lastUpdatedAt?.toIso8601String(),
       'diagnostics': diagnostics?.toJson(),
+      'userVariables': userVariables,
     };
   }
 }

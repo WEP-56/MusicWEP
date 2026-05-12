@@ -107,6 +107,7 @@ void main() {
                 required sourceUrl,
                 required method,
                 required arguments,
+                required userVariables,
               }) {
                 return const PluginMethodCallResult(
                   success: true,
@@ -172,6 +173,7 @@ void main() {
                 required sourceUrl,
                 required method,
                 required arguments,
+                required userVariables,
               }) {
                 return const PluginMethodCallResult(
                   success: false,
@@ -248,6 +250,7 @@ void main() {
                   required sourceUrl,
                   required method,
                   required arguments,
+                  required userVariables,
                 }) {
                   final quality = arguments[1]?.toString();
                   if (quality == 'standard') {
@@ -336,6 +339,7 @@ void main() {
                   required sourceUrl,
                   required method,
                   required arguments,
+                  required userVariables,
                 }) {
                   final data = switch (method) {
                     'getMusicInfo' => <String, dynamic>{
@@ -604,6 +608,7 @@ class _FakeRuntime implements PluginRuntimeAdapter {
     required String sourceUrl,
     required String method,
     required List<dynamic> arguments,
+    required Map<String, String> userVariables,
   })?
   onInvoke;
 
@@ -629,6 +634,8 @@ class _FakeRuntime implements PluginRuntimeAdapter {
     required String method,
     List<dynamic> arguments = const <dynamic>[],
     Map<String, String> userVariables = const <String, String>{},
+    String? storageKey,
+    Duration? timeout,
   }) async {
     if (onInvoke == null) {
       return const PluginMethodCallResult(
@@ -644,6 +651,7 @@ class _FakeRuntime implements PluginRuntimeAdapter {
       sourceUrl: sourceUrl,
       method: method,
       arguments: arguments,
+      userVariables: userVariables,
     );
   }
 

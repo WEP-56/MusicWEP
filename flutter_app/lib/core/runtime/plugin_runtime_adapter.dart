@@ -19,6 +19,8 @@ abstract class PluginRuntimeAdapter {
     required String method,
     List<dynamic> arguments,
     Map<String, String> userVariables,
+    String? storageKey,
+    Duration? timeout,
   });
 
   void dispose();

@@ -86,42 +86,7 @@ class PluginDetailPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'User variables',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    if (plugin.manifest?.userVariables.isEmpty ?? true)
-                      const Text('No user variables declared.')
-                    else
-                      ...plugin.manifest!.userVariables.map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                item.name?.trim().isNotEmpty == true
-                                    ? '${item.name} (${item.key})'
-                                    : item.key,
-                                style: Theme.of(context).textTheme.labelLarge,
-                              ),
-                              if (item.hint?.trim().isNotEmpty ==
-                                  true) ...<Widget>[
-                                const SizedBox(height: 4),
-                                Text(item.hint!),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              _UserVariablesSection(plugin: plugin),
               const SizedBox(height: 16),
               SectionCard(
                 child: Column(
@@ -194,6 +159,158 @@ class _InfoLine extends StatelessWidget {
           Text(label, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 4),
           SelectableText(value),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserVariablesSection extends ConsumerStatefulWidget {
+  const _UserVariablesSection({required this.plugin});
+
+  final PluginRecord plugin;
+
+  @override
+  ConsumerState<_UserVariablesSection> createState() =>
+      _UserVariablesSectionState();
+}
+
+class _UserVariablesSectionState extends ConsumerState<_UserVariablesSection> {
+  final Map<String, TextEditingController> _controllers =
+      <String, TextEditingController>{};
+  bool _saving = false;
+  String? _savedMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _hydrateControllers();
+  }
+
+  @override
+  void didUpdateWidget(covariant _UserVariablesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.plugin.storageKey != widget.plugin.storageKey) {
+      _disposeControllers();
+      _hydrateControllers();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeControllers();
+    super.dispose();
+  }
+
+  void _hydrateControllers() {
+    final definitions = widget.plugin.manifest?.userVariables ?? const [];
+    final persisted = widget.plugin.meta.userVariables;
+    for (final definition in definitions) {
+      final key = definition.key;
+      if (key.isEmpty) continue;
+      _controllers[key] = TextEditingController(text: persisted[key] ?? '');
+    }
+  }
+
+  void _disposeControllers() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    _controllers.clear();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _savedMessage = null;
+    });
+    try {
+      final values = <String, String>{
+        for (final entry in _controllers.entries) entry.key: entry.value.text,
+      };
+      await ref
+          .read(pluginControllerProvider.notifier)
+          .updateUserVariables(widget.plugin, values);
+      if (!mounted) return;
+      setState(() => _savedMessage = 'Saved.');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _savedMessage = 'Failed: $error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final definitions = widget.plugin.manifest?.userVariables ?? const [];
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'User variables',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          if (definitions.isEmpty)
+            const Text('No user variables declared.')
+          else
+            ...definitions.map((definition) {
+              final key = definition.key;
+              if (key.isEmpty) return const SizedBox.shrink();
+              final controller = _controllers[key] ??= TextEditingController(
+                text: widget.plugin.meta.userVariables[key] ?? '',
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      definition.name?.trim().isNotEmpty == true
+                          ? '${definition.name} ($key)'
+                          : key,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: controller,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: definition.hint,
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          if (definitions.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Save'),
+                ),
+                const SizedBox(width: 12),
+                if (_savedMessage != null)
+                  Text(
+                    _savedMessage!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

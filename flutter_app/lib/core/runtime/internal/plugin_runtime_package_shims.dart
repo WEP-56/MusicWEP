@@ -823,8 +823,37 @@ const __musicfree_packages = {
     },
   },
   he: {
-    decode: function(value) { return String(value || ''); },
-    encode: function(value) { return String(value || ''); },
+    decode: function(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      var text = String(value);
+      if (text.indexOf('&') === -1) {
+        return text;
+      }
+      var result = __musicfree_callBridge('MusicFreeHtmlEntities', {
+        action: 'decode',
+        value: text,
+      });
+      return (result && result.value != null) ? result.value : text;
+    },
+    encode: function(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      var text = String(value);
+      if (text.length === 0) {
+        return text;
+      }
+      var result = __musicfree_callBridge('MusicFreeHtmlEntities', {
+        action: 'encode',
+        value: text,
+      });
+      return (result && result.value != null) ? result.value : text;
+    },
+    // `he` exposes `escape`/`unescape` aliases for XML use.
+    escape: function(value) { return this.encode(value); },
+    unescape: function(value) { return this.decode(value); },
   },
   dayjs: __musicfree_makeDayjs,
   'big-integer': __musicfree_makeBigInteger,

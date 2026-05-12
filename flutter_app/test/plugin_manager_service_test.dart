@@ -266,6 +266,7 @@ void main() {
                 required sourceUrl,
                 required method,
                 required arguments,
+                required userVariables,
               }) {
                 return PluginMethodCallResult(
                   success: true,
@@ -366,6 +367,82 @@ void main() {
         }
       },
     );
+
+    test(
+      'persists user variables and forwards them on subsequent invocations',
+      () async {
+        final invokedUserVariables = <Map<String, String>>[];
+        final harness = await _createHarness(
+          runtime: _FakeRuntime(
+            onInspect: ({required script, required sourceUrl}) {
+              return PluginRuntimeResult(
+                success: true,
+                manifest: const PluginManifest(
+                  platform: 'TokenPlugin',
+                  version: '1.0.0',
+                  supportedMethods: <String>['search'],
+                  userVariables: <PluginUserVariableDefinition>[
+                    PluginUserVariableDefinition(key: 'token', name: 'Token'),
+                  ],
+                ),
+                diagnostics: PluginDiagnostics(
+                  status: PluginParseStatus.mounted,
+                  checkedAt: DateTime(2026),
+                  message: 'ok',
+                ),
+              );
+            },
+            onInvoke:
+                ({
+                  required script,
+                  required sourceUrl,
+                  required method,
+                  required arguments,
+                  required userVariables,
+                }) {
+                  invokedUserVariables.add(Map<String, String>.from(userVariables));
+                  return const PluginMethodCallResult(
+                    success: true,
+                    data: <String, dynamic>{'isEnd': true, 'data': <dynamic>[]},
+                    logs: <String>[],
+                    requiredPackages: <String>[],
+                    missingPackages: <String>[],
+                  );
+                },
+          ),
+        );
+
+        try {
+          final sourceFile = File(
+            path.join(harness.tempRoot.path, 'token_plugin.js'),
+          );
+          await sourceFile.writeAsString('const token_plugin = true;');
+          var snapshot = await harness.service.installFromLocal(
+            sourceFile.path,
+          );
+          var record = snapshot.plugins.single;
+          expect(record.meta.userVariables, isEmpty);
+
+          snapshot = await harness.service.updatePluginUserVariables(
+            record,
+            <String, String>{'token': 'abc123', '  ': 'ignored'},
+          );
+          record = snapshot.plugins.single;
+          expect(record.meta.userVariables, <String, String>{'token': 'abc123'});
+
+          await harness.service.invokePluginMethod(
+            record,
+            method: 'search',
+            arguments: <dynamic>['q', 1, 'music'],
+          );
+
+          expect(invokedUserVariables, hasLength(1));
+          expect(invokedUserVariables.single, <String, String>{'token': 'abc123'});
+        } finally {
+          await harness.dispose();
+        }
+      },
+    );
   });
 }
 
@@ -382,6 +459,7 @@ class _FakeRuntime implements PluginRuntimeAdapter {
     required String sourceUrl,
     required String method,
     required List<dynamic> arguments,
+    required Map<String, String> userVariables,
   })?
   onInvoke;
 
@@ -407,6 +485,8 @@ class _FakeRuntime implements PluginRuntimeAdapter {
     required String method,
     List<dynamic> arguments = const <dynamic>[],
     Map<String, String> userVariables = const <String, String>{},
+    String? storageKey,
+    Duration? timeout,
   }) async {
     if (onInvoke == null) {
       return const PluginMethodCallResult(
@@ -422,6 +502,7 @@ class _FakeRuntime implements PluginRuntimeAdapter {
       sourceUrl: sourceUrl,
       method: method,
       arguments: arguments,
+      userVariables: userVariables,
     );
   }
 

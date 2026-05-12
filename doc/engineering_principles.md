@@ -8,7 +8,7 @@
 
 ## File size limits
 
-- Dart source files should stay under 300 lines when practical.
+- Dart source files should stay under 800 lines when practical.
 - When a file approaches the limit, split by responsibility instead of adding regions or placeholder comments.
 - Generated code is the only exception.
 

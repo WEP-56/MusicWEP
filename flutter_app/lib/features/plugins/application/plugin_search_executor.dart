@@ -48,6 +48,8 @@ class PluginSearchExecutor {
         language: language,
         method: 'search',
         arguments: <dynamic>[query, page, type.value],
+        userVariables: plugin.meta.userVariables,
+        storageKey: plugin.storageKey,
       );
 
       if (!invocation.success) {
@@ -117,6 +119,8 @@ class PluginSearchExecutor {
       language: language,
       method: 'search',
       arguments: <dynamic>[query, page, type.value],
+      userVariables: plugin.meta.userVariables,
+      storageKey: plugin.storageKey,
     );
 
     if (!invocation.success) {

@@ -134,6 +134,24 @@ class PluginController extends AsyncNotifier<PluginManagerSnapshot> {
       return service.refreshSubscriptions();
     });
   }
+
+  /// Persists [variables] for [plugin] and reloads so downstream listeners
+  /// see the refreshed snapshot. The cached runtime instance is evicted
+  /// inside the service so the next invocation picks up the new values.
+  Future<void> updateUserVariables(
+    PluginRecord plugin,
+    Map<String, String> variables,
+  ) async {
+    final previous = state;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final service = await ref.read(pluginManagerServiceProvider.future);
+      return service.updatePluginUserVariables(plugin, variables);
+    });
+    if (state.hasError) {
+      state = previous;
+    }
+  }
 }
 
 final pluginControllerProvider =

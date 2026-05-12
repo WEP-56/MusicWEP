@@ -380,6 +380,7 @@ class _BackgroundMediaLayer extends StatelessWidget {
     return switch (background.type) {
       AppThemeBackgroundType.image => LayoutBuilder(
         builder: (context, constraints) {
+          final isGif = background.path.toLowerCase().endsWith('.gif');
           final pixelRatio = MediaQuery.devicePixelRatioOf(context);
           final width = constraints.maxWidth.isFinite
               ? (constraints.maxWidth * pixelRatio).round()
@@ -392,8 +393,9 @@ class _BackgroundMediaLayer extends StatelessWidget {
             File(background.path),
             fit: BoxFit.cover,
             filterQuality: FilterQuality.low,
-            cacheWidth: width == null || width <= 0 ? null : width,
-            cacheHeight: height == null || height <= 0 ? null : height,
+            gaplessPlayback: true,
+            cacheWidth: isGif || width == null || width <= 0 ? null : width,
+            cacheHeight: isGif || height == null || height <= 0 ? null : height,
             errorBuilder: (context, error, stackTrace) {
               return ColoredBox(color: fallbackColor);
             },

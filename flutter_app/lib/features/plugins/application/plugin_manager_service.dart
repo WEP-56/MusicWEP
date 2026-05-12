@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as path;
 
 import '../../../core/runtime/plugin_runtime_adapter.dart';
+import '../../../core/runtime/plugin_runtime_host.dart';
 import '../../../core/runtime/plugin_runtime_result.dart';
 import 'plugin_installation_coordinator.dart';
 import 'plugin_search_executor.dart';
@@ -227,9 +228,10 @@ class PluginManagerService {
     PluginRecord plugin, {
     required String method,
     List<dynamic> arguments = const <dynamic>[],
+    Duration? timeout,
   }) async {
     final script = await _fileRepository.readScript(plugin.filePath);
-    return _runtime.invokeMethod(
+    final result = await _runtime.invokeMethod(
       script: script,
       sourceUrl: Uri.file(plugin.filePath).toString(),
       appVersion: appVersion,
@@ -237,7 +239,76 @@ class PluginManagerService {
       language: language,
       method: method,
       arguments: arguments,
+      userVariables: plugin.meta.userVariables,
+      storageKey: plugin.storageKey,
+      timeout: timeout,
     );
+    await _recordInvocationDiagnostics(plugin, method, result);
+    return result;
+  }
+
+  Future<void> _recordInvocationDiagnostics(
+    PluginRecord plugin,
+    String method,
+    PluginMethodCallResult result,
+  ) async {
+    final records = await _metaRepository.loadAll();
+    final existingMeta = records[plugin.storageKey] ?? plugin.meta;
+    final existingDiagnostics = existingMeta.diagnostics;
+    if (existingDiagnostics == null) return;
+
+    final nextFailureCount = result.success
+        ? existingDiagnostics.invokeFailureCount
+        : existingDiagnostics.invokeFailureCount + 1;
+    final nextStatus = result.didTimeout
+        ? PluginParseStatus.warning
+        : existingDiagnostics.status;
+
+    final updatedDiagnostics = existingDiagnostics.copyWith(
+      status: nextStatus,
+      lastInvokeAt: DateTime.now(),
+      invokeFailureCount: nextFailureCount,
+    );
+    // Only overwrite lastInvokeErrorMessage when the outcome is a failure so
+    // recent errors remain visible after a later successful call.
+    final withError = result.success
+        ? updatedDiagnostics
+        : updatedDiagnostics.copyWith(
+            lastInvokeErrorMessage: result.didTimeout
+                ? '[$method] ${result.errorMessage ?? "timeout"}'
+                : '[$method] ${result.errorMessage ?? "failed"}',
+          );
+
+    records[plugin.storageKey] = existingMeta.copyWith(
+      diagnostics: withError,
+    );
+    await _metaRepository.saveAll(records);
+  }
+
+  /// Persists [variables] as the current plugin's user variables. Returns
+  /// the refreshed snapshot so UI layers can pick up the new values.
+  Future<PluginManagerSnapshot> updatePluginUserVariables(
+    PluginRecord plugin,
+    Map<String, String> variables,
+  ) async {
+    final records = await _metaRepository.loadAll();
+    final existing = records[plugin.storageKey] ?? plugin.meta;
+    final sanitized = <String, String>{};
+    variables.forEach((key, value) {
+      final trimmedKey = key.trim();
+      if (trimmedKey.isEmpty) return;
+      sanitized[trimmedKey] = value;
+    });
+    records[plugin.storageKey] = existing.copyWith(
+      userVariables: Map.unmodifiable(sanitized),
+    );
+    await _metaRepository.saveAll(records);
+    // Evict the cached runtime instance so the next call picks up new values.
+    if (_runtime is PluginRuntimeHost) {
+      final script = await _fileRepository.readScript(plugin.filePath);
+      (_runtime).evictInstance(script);
+    }
+    return load();
   }
 
   Future<List<PluginRecord>> _loadPlugins() async {

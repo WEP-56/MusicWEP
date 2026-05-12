@@ -97,11 +97,14 @@ ${buildPluginRuntimePackageShimScript()}
 const __musicfree_module = { exports: {} };
 const module = __musicfree_module;
 const exports = module.exports;
+globalThis.__mf_userVariables = ${context.encode(context.userVariables)};
 const env = {
   appVersion: ${context.encode(context.appVersion)},
   os: ${context.encode(context.os)},
   lang: ${context.encode(context.language)},
-  getUserVariables: function() { return ${context.encode(context.userVariables)}; },
+  getUserVariables: function() {
+    return globalThis.__mf_userVariables || {};
+  },
   get userVariables() { return this.getUserVariables(); },
 };
 const process = {

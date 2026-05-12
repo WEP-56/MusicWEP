@@ -74,7 +74,7 @@ class PluginRuntimeHttpBridge {
     }
 
     final client = IOClient(
-      HttpClient()..badCertificateCallback = (_, __, ___) => true,
+      HttpClient()..badCertificateCallback = (_, _, _) => true,
     );
     try {
       final streamedResponse = await client.send(request);
