@@ -397,6 +397,7 @@ class _RecentlyPlayedTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 980;
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     if (entries.isEmpty) {
@@ -425,38 +426,40 @@ class _RecentlyPlayedTable extends StatelessWidget {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
-              children: const <Widget>[
-                SizedBox(width: 44, child: Center(child: Text('#'))),
-                Expanded(
-                  flex: 4,
+              children: <Widget>[
+                const SizedBox(width: 44, child: Center(child: Text('#'))),
+                const Expanded(
+                  flex: 5,
                   child: Text(
                     '标题',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    '歌手',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                if (!compact) ...<Widget>[
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      '歌手',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    '专辑',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      '专辑',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 88,
-                  child: Text(
-                    '时长',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(
+                    width: 88,
+                    child: Text(
+                      '时长',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                SizedBox(
+                ],
+                const SizedBox(
                   width: 88,
                   child: Text(
                     '来源',
@@ -499,39 +502,58 @@ class _RecentlyPlayedTable extends StatelessWidget {
                           ),
                         ),
                         Expanded(
-                          flex: 4,
-                          child: Text(
-                            track.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          flex: 5,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                track.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              if (compact)
+                                Text(
+                                  '${track.artist}${track.album?.isNotEmpty == true ? ' · ${track.album}' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            track.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        if (!compact) ...<Widget>[
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              track.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            track.album ?? '-',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              track.album ?? '-',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        SizedBox(
-                          width: 88,
-                          child: Text(
-                            _formatDuration(track.duration),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
+                          SizedBox(
+                            width: 88,
+                            child: Text(
+                              _formatDuration(track.duration),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
+                        ],  // end if (!compact)
                         SizedBox(
                           width: 88,
                           child: Align(

@@ -189,6 +189,176 @@ class _SheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 980;
+    if (compact) return _buildCompact(context);
+    return _buildWide(context);
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
+    final textColor = theme.colorScheme.onSurface;
+    final secondaryColor = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // Cover + title + meta in a compact row
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 80,
+                height: 80,
+                child: artwork != null && artwork!.isNotEmpty
+                    ? Image.network(
+                        artwork!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _SheetDetailFallbackCover(title: title),
+                      )
+                    : _SheetDetailFallbackCover(title: title),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: accent),
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                  if (artist?.isNotEmpty == true)
+                    Text(
+                      '作者：$artist',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: secondaryColor),
+                    ),
+                  if (playCount != null)
+                    Text(
+                      '播放数：$playCount',
+                      style: TextStyle(fontSize: 12, color: secondaryColor),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Action buttons in a scrollable row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: onPlayPressed,
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                label: const Text('播放'),
+              ),
+              for (final action in actions) ...<Widget>[
+                const SizedBox(width: 8),
+                action.filled
+                    ? FilledButton.icon(
+                        onPressed: action.onPressed,
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
+                        icon: Icon(action.icon, size: 16),
+                        label: Text(action.label),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: action.onPressed,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
+                        icon: Icon(action.icon, size: 16),
+                        label: Text(action.label),
+                      ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Search field full-width
+        TextField(
+          controller: searchController,
+          onChanged: onSearchChanged,
+          decoration: InputDecoration(
+            hintText: searchHint,
+            isDense: true,
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerLow,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWide(BuildContext context) {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final textColor = theme.colorScheme.onSurface;
@@ -389,6 +559,7 @@ class _SheetTrackTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 980;
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final headerBackground = theme.colorScheme.surfaceContainerHigh;
@@ -414,37 +585,39 @@ class _SheetTrackTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
               children: <Widget>[
-                const SizedBox(width: 54),
+                if (!compact) const SizedBox(width: 54),
                 const SizedBox(width: 44, child: Center(child: Text('#'))),
                 const Expanded(
-                  flex: 4,
+                  flex: 5,
                   child: Text(
                     '标题',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                const Expanded(
-                  flex: 3,
-                  child: Text(
-                    '歌手',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                if (!compact) ...<Widget>[
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      '歌手',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                const Expanded(
-                  flex: 3,
-                  child: Text(
-                    '专辑',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      '专辑',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                const SizedBox(
-                  width: 88,
-                  child: Text(
-                    '时长',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(
+                    width: 88,
+                    child: Text(
+                      '时长',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
+                ],
                 if (showPlatformColumn)
                   const SizedBox(
                     width: 88,
@@ -468,6 +641,7 @@ class _SheetTrackTable extends StatelessWidget {
                 final favoriteKey = '${track.platform}@${track.id}';
                 final isFavorite = favoriteKeys.contains(favoriteKey);
                 return GestureDetector(
+                  // Desktop: right-click context menu
                   onSecondaryTapDown: (details) => showTrackContextMenu(
                     context,
                     position: details.globalPosition,
@@ -479,6 +653,21 @@ class _SheetTrackTable extends StatelessWidget {
                         ? null
                         : () => onRemoveTrackFromCurrentSheet!(track),
                   ),
+                  // Mobile: long-press context menu
+                  onLongPress: compact
+                      ? () => _showMobileTrackMenu(
+                          context,
+                          track: track,
+                          isFavorite: isFavorite,
+                          onToggleFavorite: () => onToggleFavorite(track),
+                          onAddToSheet: () => onAddTrackToSheet(track),
+                          onDownload: () => onDownloadTrack(track),
+                          onRemoveFromCurrentSheet:
+                              onRemoveTrackFromCurrentSheet == null
+                              ? null
+                              : () => onRemoveTrackFromCurrentSheet!(track),
+                        )
+                      : null,
                   child: InkWell(
                     onTap: () => onTrackTap(track),
                     onDoubleTap: () => onTrackDoubleTap(track),
@@ -488,27 +677,28 @@ class _SheetTrackTable extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: Row(
                         children: <Widget>[
-                          SizedBox(
-                            width: 54,
-                            child: Row(
-                              children: <Widget>[
-                                InkWell(
-                                  onTap: () => onToggleFavorite(track),
-                                  child: Icon(
-                                    isFavorite
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                    size: 18,
-                                    color: isFavorite
-                                        ? const Color(0xFFE44B4B)
-                                        : const Color(0xFF7A7A7A),
+                          if (!compact)
+                            SizedBox(
+                              width: 54,
+                              child: Row(
+                                children: <Widget>[
+                                  InkWell(
+                                    onTap: () => onToggleFavorite(track),
+                                    child: Icon(
+                                      isFavorite
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      size: 18,
+                                      color: isFavorite
+                                          ? const Color(0xFFE44B4B)
+                                          : const Color(0xFF7A7A7A),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                DownloadTrackButton(track: track),
-                              ],
+                                  const SizedBox(width: 8),
+                                  DownloadTrackButton(track: track),
+                                ],
+                              ),
                             ),
-                          ),
                           SizedBox(
                             width: 44,
                             child: Center(
@@ -519,37 +709,56 @@ class _SheetTrackTable extends StatelessWidget {
                             ),
                           ),
                           Expanded(
-                            flex: 4,
-                            child: Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            flex: 5,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  track.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                if (compact)
+                                  Text(
+                                    '${track.artist}${track.album?.isNotEmpty == true ? ' · ${track.album}' : ''}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: secondaryColor,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              track.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          if (!compact) ...<Widget>[
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                track.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              track.album ?? '-',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                track.album ?? '-',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          SizedBox(
-                            width: 88,
-                            child: Text(
-                              _formatDuration(track.duration),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: secondaryColor),
+                            SizedBox(
+                              width: 88,
+                              child: Text(
+                                _formatDuration(track.duration),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: secondaryColor),
+                              ),
                             ),
-                          ),
+                          ],
                           if (showPlatformColumn)
                             SizedBox(
                               width: 88,
@@ -591,6 +800,80 @@ class _SheetTrackTable extends StatelessWidget {
     );
   }
 
+  static Future<void> _showMobileTrackMenu(
+    BuildContext context, {
+    required MusicItem track,
+    required bool isFavorite,
+    required VoidCallback onToggleFavorite,
+    required VoidCallback onAddToSheet,
+    required VoidCallback onDownload,
+    VoidCallback? onRemoveFromCurrentSheet,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.music_note_rounded),
+              title: Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                track.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                isFavorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: isFavorite ? const Color(0xFFE44B4B) : null,
+              ),
+              title: Text(isFavorite ? '从"我喜欢"移除' : '添加到"我喜欢"'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                onToggleFavorite();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded),
+              title: const Text('添加到歌单'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                onAddToSheet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_rounded),
+              title: const Text('下载'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                onDownload();
+              },
+            ),
+            if (onRemoveFromCurrentSheet != null)
+              ListTile(
+                leading: const Icon(Icons.remove_circle_outline_rounded),
+                title: const Text('从歌单内删除'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  onRemoveFromCurrentSheet();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   static String _formatDuration(int? seconds) {
     if (seconds == null || seconds <= 0) {
       return '--:--';
@@ -608,50 +891,19 @@ class _SheetDetailFallbackCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _palette(title);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: palette,
-        ),
-      ),
+    final accent = AppTheme.colorsOf(context).accent;
+    return Container(
+      color: accent.withValues(alpha: 0.15),
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-            ),
+        child: Text(
+          title.isNotEmpty ? title[0].toUpperCase() : '?',
+          style: TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.w800,
+            color: accent,
           ),
         ),
       ),
     );
   }
-
-  static List<Color> _palette(String seed) {
-    final value = seed.runes.fold<int>(0, (sum, rune) => sum + rune);
-    const palettes = <List<Color>>[
-      <Color>[Color(0xFFF2994A), Color(0xFFF2C94C)],
-      <Color>[Color(0xFF654EA3), Color(0xFFEAafc8)],
-      <Color>[Color(0xFF4CB8C4), Color(0xFF3CD3AD)],
-      <Color>[Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-      <Color>[Color(0xFF4568DC), Color(0xFFB06AB3)],
-      <Color>[Color(0xFF1D976C), Color(0xFF93F9B9)],
-    ];
-    return palettes[value % math.max(1, palettes.length)];
-  }
-}
-
-extension<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

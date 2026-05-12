@@ -454,7 +454,7 @@ class _MobileDrawer extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
                         child: Text(
-                          '收藏歌单',
+                          '我的收藏',
                           style: theme.textTheme.labelLarge?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

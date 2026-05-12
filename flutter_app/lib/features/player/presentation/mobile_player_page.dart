@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_theme.dart';
 import '../../../core/media/media_constants.dart';
+import '../../media/music_sheet_library_providers.dart';
+import '../../media/presentation/widgets/music_track_actions.dart';
 import '../domain/player_models.dart';
 import '../domain/player_state.dart';
 import '../player_providers.dart';
@@ -78,7 +80,33 @@ class _MobilePlayerPageState extends ConsumerState<MobilePlayerPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 48),
+                  // Favorite button in the top-right slot
+                  Consumer(
+                    builder: (ctx, ref, _) {
+                      final track = ref.watch(
+                        playerControllerProvider.select((s) => s.currentTrack),
+                      );
+                      if (track == null) return const SizedBox(width: 48);
+                      final isFavorite = ref.watch(
+                        isFavoriteMusicProvider(track),
+                      );
+                      return SizedBox(
+                        width: 48,
+                        child: IconButton(
+                          icon: Icon(
+                            isFavorite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            color: isFavorite
+                                ? const Color(0xFFE44B4B)
+                                : null,
+                          ),
+                          onPressed: () =>
+                              toggleFavoriteTrack(ctx, ref, track),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

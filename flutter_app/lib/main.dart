@@ -14,7 +14,12 @@ import 'main_desktop.dart' if (dart.library.html) 'main_stub.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
+  try {
+    MediaKit.ensureInitialized();
+  } catch (error) {
+    // ignore: avoid_print
+    print('MediaKit init warning: $error');
+  }
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await initDesktop(args);
@@ -24,22 +29,31 @@ Future<void> main(List<String> args) async {
   // Android / iOS — initialise audio_service for notification controls.
   if (Platform.isAndroid || Platform.isIOS) {
     final container = ProviderContainer();
-    final handler = await AudioService.init(
-      builder: () => MusicWEPAudioHandler(container),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.musicwep.app.channel.audio',
-        androidNotificationChannelName: 'MusicWEP 播放控制',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
-        notificationColor: Color(0xFF1A1A2E),
-      ),
-    );
+    MusicWEPAudioHandler? handler;
+    try {
+      handler = await AudioService.init(
+        builder: () => MusicWEPAudioHandler(container),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'com.musicwep.app.channel.audio',
+          androidNotificationChannelName: 'MusicWEP 播放控制',
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
+          notificationColor: Color(0xFF1A1A2E),
+        ),
+      );
+    } catch (error) {
+      // audio_service init failed (e.g. wrong Activity class, first cold start).
+      // App still runs — just without the notification media controls.
+      // ignore: avoid_print
+      print('audio_service init failed: $error');
+    }
     runApp(
       UncontrolledProviderScope(
         container: container,
         child: ProviderScope(
           overrides: <Override>[
-            audioHandlerProvider.overrideWithValue(handler),
+            if (handler != null)
+              audioHandlerProvider.overrideWithValue(handler),
           ],
           child: const MusicWEPApp(),
         ),
