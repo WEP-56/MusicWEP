@@ -564,7 +564,7 @@ class AppTheme {
         ? _mix(preset.seedColor, Colors.white, 0.86)
         : _mix(preset.seedColor, const Color(0xFF17181C), 0.62);
     final softAccentText = brightness == Brightness.light
-        ? preset.seedColor
+        ? _mix(preset.seedColor, Colors.black, 0.35)
         : _mix(preset.seedColor, Colors.white, 0.18);
 
     return ThemeData(

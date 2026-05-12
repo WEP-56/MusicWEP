@@ -121,6 +121,7 @@ class _PluginTabBar extends StatelessWidget {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
+    final softAccentText = AppTheme.colorsOf(context).softAccentText;
     return HorizontalItemScroller(
       height: 46,
       itemCount: plugins.length,
@@ -143,7 +144,7 @@ class _PluginTabBar extends StatelessWidget {
             child: Text(
               plugin.displayName,
               style: TextStyle(
-                color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+                color: selected ? softAccentText : theme.colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),

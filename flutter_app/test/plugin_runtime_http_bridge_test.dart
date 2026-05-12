@@ -271,9 +271,9 @@ void main() {
       expect(script, contains('AES: {'));
       // cheerio shim — new JS-side selector engine
       expect(script, contains('children: function(selector)'));
-      // big-integer shim — now pure JS BigInt, no bridge call for 'create'
+      // big-integer shim — bridge-based, no native BigInt
       expect(script, contains('modPow: function(exponent, modulus)'));
-      expect(script, contains('__musicfree_bigIntWrap'));
+      expect(script, contains('__musicfree_makeBigInteger'));
     });
   });
 }

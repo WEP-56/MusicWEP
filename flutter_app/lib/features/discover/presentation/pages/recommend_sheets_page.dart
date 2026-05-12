@@ -201,6 +201,7 @@ class _PluginTabBar extends StatelessWidget {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
+    final softAccentText = AppTheme.colorsOf(context).softAccentText;
     return HorizontalItemScroller(
       height: 46,
       itemCount: plugins.length,
@@ -223,7 +224,7 @@ class _PluginTabBar extends StatelessWidget {
             child: Text(
               plugin.displayName,
               style: TextStyle(
-                color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+                color: selected ? softAccentText : theme.colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -314,6 +315,7 @@ class _TagChip extends StatelessWidget {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
+    final softAccentText = AppTheme.colorsOf(context).softAccentText;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
@@ -330,7 +332,7 @@ class _TagChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+                color: selected ? softAccentText : theme.colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -340,7 +342,7 @@ class _TagChip extends StatelessWidget {
               Icon(
                 trailingIcon,
                 size: 16,
-                color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+                color: selected ? softAccentText : theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ],

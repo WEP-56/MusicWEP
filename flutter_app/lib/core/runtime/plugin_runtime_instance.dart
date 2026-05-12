@@ -182,8 +182,16 @@ class PluginRuntimeInstance {
     required String language,
     required Map<String, String> userVariables,
   }) async {
+    // QuickJS is stricter than V8 about regex escape sequences. Plugins
+    // compiled from TypeScript often contain `\<` and `\>` inside regex
+    // literals (e.g. `/\<em\>/g`). These are valid in V8 (backslash before
+    // a non-special char is silently ignored) but cause
+    // `SyntaxError: unexpected token '<'` in QuickJS.
+    // We fix them by removing the spurious backslash before `<` and `>`.
+    final sanitizedScript = _sanitizeScriptForQuickJs(script);
+
     final context = PluginRuntimeExecutionContext(
-      script: script,
+      script: sanitizedScript,
       sourceUrl: sourceUrl,
       appVersion: appVersion,
       os: os,
@@ -600,6 +608,18 @@ ${buildPluginRuntimeSharedScope(context)}
     if (_disposed) {
       throw StateError('PluginRuntimeInstance has been disposed.');
     }
+  }
+
+  /// Removes backslash-escapes before `<` and `>` that are valid in V8 but
+  /// cause `SyntaxError: unexpected token` in QuickJS.
+  ///
+  /// In JavaScript, `\<` inside a regex or string is identical to `<` — the
+  /// backslash has no special meaning before these characters. V8 silently
+  /// accepts them; QuickJS rejects them.
+  static String _sanitizeScriptForQuickJs(String script) {
+    // Replace \< and \> with < and > everywhere. These sequences are never
+    // semantically meaningful in JS so the substitution is always safe.
+    return script.replaceAll(r'\<', '<').replaceAll(r'\>', '>');
   }
 }
 

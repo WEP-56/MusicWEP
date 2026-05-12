@@ -93,6 +93,17 @@ class PluginsPage extends ConsumerWidget {
                                 ),
                                 itemBuilder: (context, index) {
                                   final plugin = data.plugins[index];
+                                  final hasUserVars =
+                                      plugin.manifest?.userVariables.isNotEmpty ==
+                                      true;
+                                  final supportsImportSheet =
+                                      plugin.manifest?.supportedMethods
+                                          .contains('importMusicSheet') ==
+                                      true;
+                                  final supportsImportItem =
+                                      plugin.manifest?.supportedMethods
+                                          .contains('importMusicItem') ==
+                                      true;
                                   return _PluginTableRow(
                                     index: index,
                                     plugin: plugin,
@@ -104,6 +115,27 @@ class PluginsPage extends ConsumerWidget {
                                     onDetails: () => context.go(
                                       '/plugins/${Uri.encodeComponent(plugin.storageKey)}',
                                     ),
+                                    onUserVariables: hasUserVars
+                                        ? () => context.go(
+                                            '/plugins/${Uri.encodeComponent(plugin.storageKey)}',
+                                          )
+                                        : null,
+                                    onImportSheet: supportsImportSheet
+                                        ? () => _showImportDialog(
+                                            context,
+                                            ref,
+                                            plugin,
+                                            isSheet: true,
+                                          )
+                                        : null,
+                                    onImportItem: supportsImportItem
+                                        ? () => _showImportDialog(
+                                            context,
+                                            ref,
+                                            plugin,
+                                            isSheet: false,
+                                          )
+                                        : null,
                                   );
                                 },
                               ),
@@ -157,6 +189,80 @@ class PluginsPage extends ConsumerWidget {
       await controller.installFromUrl(value);
     }
   }
+
+  /// Shows a URL input dialog for importing a sheet or single track.
+  /// [isSheet] = true → importMusicSheet, false → importMusicItem.
+  Future<void> _showImportDialog(
+    BuildContext context,
+    WidgetRef ref,
+    PluginRecord plugin, {
+    required bool isSheet,
+  }) async {
+    final textController = TextEditingController();
+    final title = isSheet ? '导入歌单' : '导入单曲';
+    final hint = isSheet ? '粘贴歌单链接或分享链接' : '粘贴单曲链接或分享链接';
+
+    final urlLike = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(ctx).pop(textController.text.trim()),
+            child: const Text('导入'),
+          ),
+        ],
+      ),
+    );
+
+    if (urlLike == null || urlLike.isEmpty || !context.mounted) return;
+
+    final methodService = await ref.read(pluginMethodServiceProvider.future);
+
+    if (isSheet) {
+      final tracks = await methodService.importMusicSheet(
+        plugin: plugin,
+        urlLike: urlLike,
+      );
+      if (!context.mounted) return;
+      if (tracks.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未能解析到任何曲目，请检查链接是否正确。')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已解析 ${tracks.length} 首曲目，请在搜索结果中查看。')),
+        );
+        // TODO: route to a sheet preview / add-to-library flow
+      }
+    } else {
+      final track = await methodService.importMusicItem(
+        plugin: plugin,
+        urlLike: urlLike,
+      );
+      if (!context.mounted) return;
+      if (track == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未能解析单曲，请检查链接是否正确。')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已解析：${track.title} — ${track.artist ?? ''}')),
+        );
+        // TODO: route to track detail / add-to-queue flow
+      }
+    }
+  }
 }
 
 class _PluginTableHeader extends StatelessWidget {
@@ -199,6 +305,9 @@ class _PluginTableRow extends StatelessWidget {
     required this.onDetails,
     required this.onDelete,
     this.onUpdate,
+    this.onUserVariables,
+    this.onImportSheet,
+    this.onImportItem,
   });
 
   final int index;
@@ -206,6 +315,9 @@ class _PluginTableRow extends StatelessWidget {
   final VoidCallback onDetails;
   final VoidCallback onDelete;
   final VoidCallback? onUpdate;
+  final VoidCallback? onUserVariables;
+  final VoidCallback? onImportSheet;
+  final VoidCallback? onImportItem;
 
   @override
   Widget build(BuildContext context) {
@@ -258,6 +370,12 @@ class _PluginTableRow extends StatelessWidget {
                 _ActionText(label: '详情', onTap: onDetails),
                 _ActionText(label: '更新', onTap: onUpdate),
                 _ActionText(label: '卸载', onTap: onDelete, danger: true),
+                if (onUserVariables != null)
+                  _ActionText(label: '用户变量', onTap: onUserVariables),
+                if (onImportSheet != null)
+                  _ActionText(label: '导入歌单', onTap: onImportSheet),
+                if (onImportItem != null)
+                  _ActionText(label: '导入单曲', onTap: onImportItem),
               ],
             ),
           ),

@@ -18,8 +18,6 @@
 /// Unsupported selectors throw, rather than silently returning empty sets.
 String buildShimCheerio() {
   return r'''
-const __musicfree_cheerioParseCache = new WeakMap();
-
 const __musicfree_cheerioLoadTree = function(html) {
   const key = { html: String(html || '') };
   const result = __musicfree_callBridge('MusicFreeCheerio', {
@@ -309,11 +307,11 @@ const __musicfree_cheerioChildren = function(node) {
 const __musicfree_cheerioRunSelectorGroup = function(selector, scope) {
   const groups = __musicfree_cheerioTokenize(String(selector || ''));
   const out = [];
-  const seen = new Set();
+  const seen = [];
   groups.forEach(function(sequence) {
     __musicfree_cheerioRunSequence(sequence, scope).forEach(function(node) {
-      if (!seen.has(node)) {
-        seen.add(node);
+      if (seen.indexOf(node) === -1) {
+        seen.push(node);
         out.push(node);
       }
     });
@@ -364,9 +362,9 @@ const __musicfree_cheerioRunSequence = function(sequence, scope) {
       });
     }
     const unique = [];
-    const seen = new Set();
+    const seenUniq = [];
     candidates.forEach(function(n) {
-      if (!seen.has(n)) { seen.add(n); unique.push(n); }
+      if (seenUniq.indexOf(n) === -1) { seenUniq.push(n); unique.push(n); }
     });
     current = unique;
     if (!current.length) break;
@@ -484,10 +482,10 @@ const __musicfree_cheerioMakeCollection = function(nodes) {
     },
     parent: function() {
       const parents = [];
-      const seen = new Set();
+      const seenParents = [];
       nodes.forEach(function(node) {
-        if (node.__parent && node.__parent.tag && !seen.has(node.__parent)) {
-          seen.add(node.__parent);
+        if (node.__parent && node.__parent.tag && seenParents.indexOf(node.__parent) === -1) {
+          seenParents.push(node.__parent);
           parents.push(node.__parent);
         }
       });
@@ -495,11 +493,11 @@ const __musicfree_cheerioMakeCollection = function(nodes) {
     },
     parents: function(selector) {
       const result = [];
-      const seen = new Set();
+      const seenParents = [];
       nodes.forEach(function(node) {
         let cur = node.__parent;
         while (cur && cur.tag) {
-          if (!seen.has(cur)) { seen.add(cur); result.push(cur); }
+          if (seenParents.indexOf(cur) === -1) { seenParents.push(cur); result.push(cur); }
           cur = cur.__parent;
         }
       });

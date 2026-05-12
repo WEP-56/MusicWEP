@@ -252,37 +252,45 @@ class PluginManagerService {
     String method,
     PluginMethodCallResult result,
   ) async {
-    final records = await _metaRepository.loadAll();
-    final existingMeta = records[plugin.storageKey] ?? plugin.meta;
-    final existingDiagnostics = existingMeta.diagnostics;
-    if (existingDiagnostics == null) return;
+    try {
+      final records = await _metaRepository.loadAll();
+      // If the plugin was deleted between the invoke and now, skip the write
+      // to avoid re-inserting a stale record.
+      if (!records.containsKey(plugin.storageKey)) return;
 
-    final nextFailureCount = result.success
-        ? existingDiagnostics.invokeFailureCount
-        : existingDiagnostics.invokeFailureCount + 1;
-    final nextStatus = result.didTimeout
-        ? PluginParseStatus.warning
-        : existingDiagnostics.status;
+      final existingMeta = records[plugin.storageKey]!;
+      final existingDiagnostics = existingMeta.diagnostics;
+      if (existingDiagnostics == null) return;
 
-    final updatedDiagnostics = existingDiagnostics.copyWith(
-      status: nextStatus,
-      lastInvokeAt: DateTime.now(),
-      invokeFailureCount: nextFailureCount,
-    );
-    // Only overwrite lastInvokeErrorMessage when the outcome is a failure so
-    // recent errors remain visible after a later successful call.
-    final withError = result.success
-        ? updatedDiagnostics
-        : updatedDiagnostics.copyWith(
-            lastInvokeErrorMessage: result.didTimeout
-                ? '[$method] ${result.errorMessage ?? "timeout"}'
-                : '[$method] ${result.errorMessage ?? "failed"}',
-          );
+      final nextFailureCount = result.success
+          ? existingDiagnostics.invokeFailureCount
+          : existingDiagnostics.invokeFailureCount + 1;
+      final nextStatus = result.didTimeout
+          ? PluginParseStatus.warning
+          : existingDiagnostics.status;
 
-    records[plugin.storageKey] = existingMeta.copyWith(
-      diagnostics: withError,
-    );
-    await _metaRepository.saveAll(records);
+      final updatedDiagnostics = existingDiagnostics.copyWith(
+        status: nextStatus,
+        lastInvokeAt: DateTime.now(),
+        invokeFailureCount: nextFailureCount,
+      );
+      final withError = result.success
+          ? updatedDiagnostics
+          : updatedDiagnostics.copyWith(
+              lastInvokeErrorMessage: result.didTimeout
+                  ? '[$method] ${result.errorMessage ?? "timeout"}'
+                  : '[$method] ${result.errorMessage ?? "failed"}',
+            );
+
+      records[plugin.storageKey] = existingMeta.copyWith(
+        diagnostics: withError,
+      );
+      await _metaRepository.saveAll(records);
+    } catch (error) {
+      // Diagnostics recording is best-effort. Never let it crash the caller.
+      // ignore: avoid_print
+      print('_recordInvocationDiagnostics: $error');
+    }
   }
 
   /// Persists [variables] as the current plugin's user variables. Returns

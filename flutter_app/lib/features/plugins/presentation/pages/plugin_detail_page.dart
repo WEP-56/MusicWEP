@@ -17,8 +17,8 @@ class PluginDetailPage extends ConsumerWidget {
     final snapshot = ref.watch(pluginControllerProvider);
 
     return AppShell(
-      title: 'Plugin details',
-      subtitle: 'Inspect exported metadata and compatibility diagnostics.',
+      title: '插件详情',
+      subtitle: '查看插件元数据、能力列表、用户变量与诊断信息。',
       child: snapshot.when(
         data: (data) {
           final plugin = data.plugins
@@ -39,19 +39,19 @@ class PluginDetailPage extends ConsumerWidget {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 12),
-                    _InfoLine(label: 'Hash', value: plugin.hash),
+                    _InfoLine(label: '哈希', value: plugin.hash),
                     _InfoLine(
-                      label: 'Version',
-                      value: plugin.version ?? 'Unknown',
+                      label: '版本',
+                      value: plugin.version ?? '未知',
                     ),
                     _InfoLine(
-                      label: 'Source URL',
-                      value: plugin.sourceUrl ?? 'Not provided',
+                      label: '来源 URL',
+                      value: plugin.sourceUrl ?? '未提供',
                     ),
-                    _InfoLine(label: 'File path', value: plugin.filePath),
+                    _InfoLine(label: '文件路径', value: plugin.filePath),
                     _InfoLine(
-                      label: 'Enabled',
-                      value: plugin.meta.enabled ? 'Yes' : 'No',
+                      label: '已启用',
+                      value: plugin.meta.enabled ? '是' : '否',
                     ),
                   ],
                 ),
@@ -62,7 +62,7 @@ class PluginDetailPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Capabilities',
+                      '能力',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -80,7 +80,7 @@ class PluginDetailPage extends ConsumerWidget {
                                 ),
                               )
                               .toList(growable: false) ??
-                          const <Widget>[Text('No exported methods detected.')],
+                          const <Widget>[Text('未检测到导出方法。')],
                     ),
                   ],
                 ),
@@ -93,38 +93,38 @@ class PluginDetailPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Diagnostics',
+                      '诊断',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
                     _InfoLine(
-                      label: 'Status',
-                      value: plugin.diagnostics?.status.name ?? 'Unknown',
+                      label: '状态',
+                      value: plugin.diagnostics?.status.name ?? '未知',
                     ),
                     _InfoLine(
-                      label: 'Message',
-                      value: plugin.diagnostics?.message ?? 'No message',
+                      label: '消息',
+                      value: plugin.diagnostics?.message ?? '无消息',
                     ),
                     _InfoLine(
-                      label: 'Checked at',
+                      label: '检查时间',
                       value:
                           plugin.diagnostics?.checkedAt.toIso8601String() ??
-                          'Unknown',
+                          '未知',
                     ),
                     _InfoLine(
-                      label: 'Required packages',
+                      label: '依赖包',
                       value:
                           plugin.diagnostics?.requiredPackages.isNotEmpty ==
                               true
                           ? plugin.diagnostics!.requiredPackages.join(', ')
-                          : 'None',
+                          : '无',
                     ),
                     _InfoLine(
-                      label: 'Missing package shims',
+                      label: '缺失 shim',
                       value:
                           plugin.diagnostics?.missingPackages.isNotEmpty == true
                           ? plugin.diagnostics!.missingPackages.join(', ')
-                          : 'None',
+                          : '无',
                     ),
                     if (plugin.diagnostics?.stackTrace != null) ...<Widget>[
                       const SizedBox(height: 12),
@@ -233,10 +233,10 @@ class _UserVariablesSectionState extends ConsumerState<_UserVariablesSection> {
           .read(pluginControllerProvider.notifier)
           .updateUserVariables(widget.plugin, values);
       if (!mounted) return;
-      setState(() => _savedMessage = 'Saved.');
+      setState(() => _savedMessage = '已保存。');
     } catch (error) {
       if (!mounted) return;
-      setState(() => _savedMessage = 'Failed: $error');
+      setState(() => _savedMessage = '保存失败：$error');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -250,12 +250,12 @@ class _UserVariablesSectionState extends ConsumerState<_UserVariablesSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'User variables',
+            '用户变量',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
           if (definitions.isEmpty)
-            const Text('No user variables declared.')
+            const Text('该插件未声明用户变量。')
           else
             ...definitions.map((definition) {
               final key = definition.key;
@@ -300,7 +300,7 @@ class _UserVariablesSectionState extends ConsumerState<_UserVariablesSection> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.save_outlined),
-                  label: const Text('Save'),
+                  label: const Text('保存'),
                 ),
                 const SizedBox(width: 12),
                 if (_savedMessage != null)

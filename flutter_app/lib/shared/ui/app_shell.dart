@@ -438,8 +438,6 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
   StreamSubscription<bool>? _completedSubscription;
   Timer? _recycleTimer;
   bool _hasError = false;
-  int? _lastOutputWidth;
-  int? _lastOutputHeight;
   bool _pendingRecycle = false;
   bool _playbackSyncInProgress = false;
   bool _rebuildInProgress = false;
@@ -559,7 +557,7 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
       );
       final nextController = VideoController(
         nextPlayer,
-        configuration: const VideoControllerConfiguration(scale: 0.75),
+        configuration: const VideoControllerConfiguration(),
       );
 
       await nextPlayer.setPlaylistMode(PlaylistMode.single);
@@ -643,33 +641,6 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
     });
   }
 
-  void _updateVideoOutputSize(
-    BuildContext context,
-    BoxConstraints constraints,
-  ) {
-    final controller = _controller;
-    if (controller == null) {
-      return;
-    }
-    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final width = constraints.maxWidth.isFinite
-        ? (constraints.maxWidth * pixelRatio).round()
-        : null;
-    final height = constraints.maxHeight.isFinite
-        ? (constraints.maxHeight * pixelRatio).round()
-        : null;
-    if (width == null ||
-        height == null ||
-        width <= 0 ||
-        height <= 0 ||
-        (_lastOutputWidth == width && _lastOutputHeight == height)) {
-      return;
-    }
-    _lastOutputWidth = width;
-    _lastOutputHeight = height;
-    unawaited(controller.setSize(width: width, height: height));
-  }
-
   @override
   void dispose() {
     _completedSubscription?.cancel();
@@ -715,7 +686,16 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        _updateVideoOutputSize(context, constraints);
+        // We intentionally do NOT call controller.setSize here. Letting the
+        // texture stay at the video's native resolution avoids the async
+        // resize race that causes black bars when the window changes size or
+        // the app returns from the tray. BoxFit.cover + matching aspectRatio
+        // handles the visual fill instantly at the widget layer.
+        final containerAspect = constraints.maxWidth.isFinite &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight > 0
+            ? constraints.maxWidth / constraints.maxHeight
+            : null;
         return IgnorePointer(
           child: Video(
             controller: controller,
@@ -729,6 +709,7 @@ class _BackgroundVideoLayerState extends State<_BackgroundVideoLayer> {
             filterQuality: FilterQuality.low,
             pauseUponEnteringBackgroundMode: true,
             wakelock: false,
+            aspectRatio: containerAspect,
           ),
         );
       },
@@ -1653,6 +1634,7 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
+    final softAccentText = AppTheme.colorsOf(context).softAccentText;
     final theme = Theme.of(context);
     final baseColor = theme.colorScheme.onSurface.withValues(alpha: 0.8);
     return InkWell(
@@ -1671,12 +1653,12 @@ class _SidebarItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
           children: <Widget>[
-            Icon(icon, size: 19, color: selected ? accent : baseColor),
+            Icon(icon, size: 19, color: selected ? softAccentText : baseColor),
             const SizedBox(width: 10),
             Text(
               label,
               style: TextStyle(
-                color: selected ? accent : baseColor,
+                color: selected ? softAccentText : baseColor,
                 fontSize: 15,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
@@ -1709,6 +1691,7 @@ class _LibrarySidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = AppTheme.colorsOf(context).accent;
     final softAccent = AppTheme.colorsOf(context).softAccent;
+    final softAccentText = AppTheme.colorsOf(context).softAccentText;
     final theme = Theme.of(context);
     final baseColor = theme.colorScheme.onSurface.withValues(alpha: 0.78);
     return InkWell(
@@ -1722,7 +1705,7 @@ class _LibrarySidebarItem extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            Icon(icon, size: 16, color: selected ? accent : baseColor),
+            Icon(icon, size: 16, color: selected ? softAccentText : baseColor),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1730,7 +1713,7 @@ class _LibrarySidebarItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: selected ? accent : baseColor,
+                  color: selected ? softAccentText : baseColor,
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),

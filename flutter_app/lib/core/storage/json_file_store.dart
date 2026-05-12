@@ -17,12 +17,25 @@ class JsonFileStore {
       return <String, dynamic>{};
     }
 
-    final decoded = jsonDecode(raw);
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
-    }
-    if (decoded is Map) {
-      return decoded.map((key, value) => MapEntry(key.toString(), value));
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value));
+      }
+    } on FormatException catch (error) {
+      // The file is corrupted (e.g. from a partial write). Log and return
+      // empty so the app can recover rather than crashing on every launch.
+      // ignore: avoid_print
+      print('JsonFileStore: corrupted JSON at $filePath — $error. Resetting.');
+      // Attempt to delete the corrupted file so the next write starts fresh.
+      try {
+        await file.delete();
+      } on FileSystemException {
+        // If we can't delete it, the next writeJson will overwrite it.
+      }
     }
     return <String, dynamic>{};
   }
@@ -52,6 +65,11 @@ class JsonFileStore {
       await parent.create(recursive: true);
     }
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(encoder.convert(value));
+    final encoded = encoder.convert(value);
+    // Write atomically: write to a temp file then rename so a crash or
+    // concurrent read never sees a partial write.
+    final tempFile = File('${filePath}.tmp');
+    await tempFile.writeAsString(encoded, flush: true);
+    await tempFile.rename(filePath);
   }
 }
