@@ -7,7 +7,9 @@ import 'package:flutter_js/extensions/fetch.dart';
 
 import '../../features/plugins/domain/plugin.dart';
 import '../filesystem/app_paths.dart';
+import '../storage/json_file_store.dart';
 import 'internal/plugin_runtime_bigint_bridge.dart';
+import 'internal/plugin_runtime_cookie_store.dart';
 import 'internal/plugin_runtime_execution_context.dart';
 import 'internal/plugin_runtime_host_bridges.dart';
 import 'internal/plugin_runtime_html_entities_bridge.dart';
@@ -102,8 +104,14 @@ class PluginRuntimeInstance {
     final runtime = _createRuntime();
 
     final bigIntBridge = PluginRuntimeBigIntBridge();
-    final stateBridge = PluginRuntimeStateBridge(appPaths);
-    final httpBridge = PluginRuntimeHttpBridge();
+    final cookieStore = PluginRuntimeCookieStore(
+      JsonFileStore(appPaths.pluginCookiesFilePath),
+    );
+    final stateBridge = PluginRuntimeStateBridge.withCookieStore(
+      appPaths: appPaths,
+      cookieStore: cookieStore,
+    );
+    final httpBridge = PluginRuntimeHttpBridge(cookieStore: cookieStore);
     final webDavBridge = PluginRuntimeWebDavBridge();
     final consoleLogs = <String>[];
     final logger = storageKey == null

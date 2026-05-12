@@ -5,8 +5,13 @@ import 'dart:isolate';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
+import 'plugin_runtime_cookie_store.dart';
+
 class PluginRuntimeHttpBridge {
-  PluginRuntimeHttpBridge();
+  PluginRuntimeHttpBridge({PluginRuntimeCookieStore? cookieStore})
+    : _cookieStore = cookieStore;
+
+  final PluginRuntimeCookieStore? _cookieStore;
 
   Future<String> handle(dynamic args) async {
     final payload = _readObject(args);
@@ -21,10 +26,13 @@ class PluginRuntimeHttpBridge {
     try {
       final method = (payload['method']?.toString() ?? 'GET').toUpperCase();
       final url = payload['url']?.toString() ?? '';
-      final headers = _readStringMapStatic(payload['headers']);
+      final requestedHeaders = _readStringMapStatic(payload['headers']);
       final body = payload['body']?.toString();
       final responseType = payload['responseType']?.toString() ?? '';
       final timeoutMs = _readTimeoutMs(payload['timeout']);
+
+      final uri = Uri.parse(url);
+      final headers = await _applyStoredCookies(uri, requestedHeaders);
 
       final requestFuture = Isolate.run(
         () => _sendInIsolate(<String, dynamic>{
@@ -39,6 +47,7 @@ class PluginRuntimeHttpBridge {
           ? await requestFuture
           : await requestFuture.timeout(Duration(milliseconds: timeoutMs));
 
+      await _ingestResponseCookies(uri, response);
       return jsonEncode(response);
     } catch (error, stackTrace) {
       return jsonEncode(<String, dynamic>{
@@ -46,6 +55,45 @@ class PluginRuntimeHttpBridge {
         'stackTrace': stackTrace.toString(),
       });
     }
+  }
+
+  Future<Map<String, String>> _applyStoredCookies(
+    Uri uri,
+    Map<String, String> headers,
+  ) async {
+    final store = _cookieStore;
+    if (store == null) return headers;
+    final cookieHeader = await store.buildCookieHeader(uri);
+    if (cookieHeader.isEmpty) return headers;
+    final merged = Map<String, String>.from(headers);
+    // Preserve a plugin-supplied `Cookie` header (merge instead of overwrite).
+    final existingKey = merged.keys.firstWhere(
+      (key) => key.toLowerCase() == 'cookie',
+      orElse: () => '',
+    );
+    if (existingKey.isNotEmpty) {
+      final existing = merged[existingKey]!.trim();
+      merged[existingKey] = existing.isEmpty
+          ? cookieHeader
+          : '$existing; $cookieHeader';
+    } else {
+      merged['Cookie'] = cookieHeader;
+    }
+    return merged;
+  }
+
+  Future<void> _ingestResponseCookies(
+    Uri uri,
+    Map<String, dynamic> response,
+  ) async {
+    final store = _cookieStore;
+    if (store == null) return;
+    final rawHeaders = response['headers'];
+    if (rawHeaders is! Map) return;
+    final headers = rawHeaders.map(
+      (key, value) => MapEntry(key.toString(), value.toString()),
+    );
+    await store.ingestSetCookies(requestUri: uri, responseHeaders: headers);
   }
 
   static Future<Map<String, dynamic>> _sendInIsolate(

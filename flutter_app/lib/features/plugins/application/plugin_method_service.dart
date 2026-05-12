@@ -1,5 +1,4 @@
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 import '../../../core/media/media_constants.dart';
 import '../../../core/media/media_models.dart';
@@ -103,66 +102,66 @@ class PluginMethodService {
       return _localPluginService.getMediaSource(musicItem, quality: quality);
     }
 
+    final candidateQuality = qualityKeys.contains(quality)
+        ? quality
+        : 'standard';
     Object? lastError;
     StackTrace? lastStackTrace;
-    final attemptedQualities = _buildQualityFallbackOrder(
-      requestedQuality: quality,
-    );
     final failureMessages = <String>[];
 
-    for (final candidateQuality in attemptedQualities) {
-      for (var attempt = 0; attempt <= retryCount; attempt++) {
-        try {
-          final invocation = await _pluginManagerService.invokePluginMethod(
-            plugin,
-            method: 'getMediaSource',
-            arguments: <dynamic>[musicItem.toJson(), candidateQuality],
+    // Retry the same quality `retryCount` times. No cross-quality fallback:
+    // the user chooses what to do when a requested quality is not available.
+    for (var attempt = 0; attempt <= retryCount; attempt++) {
+      try {
+        final invocation = await _pluginManagerService.invokePluginMethod(
+          plugin,
+          method: 'getMediaSource',
+          arguments: <dynamic>[musicItem.toJson(), candidateQuality],
+        );
+        if (!invocation.success) {
+          throw StateError(
+            _buildMediaSourceAttemptMessage(
+              plugin: plugin,
+              musicItem: musicItem,
+              quality: candidateQuality,
+              message: invocation.errorMessage ?? 'getMediaSource failed.',
+              logs: invocation.logs,
+            ),
           );
-          if (!invocation.success) {
-            throw StateError(
-              _buildMediaSourceAttemptMessage(
-                plugin: plugin,
-                musicItem: musicItem,
-                quality: candidateQuality,
-                message: invocation.errorMessage ?? 'getMediaSource failed.',
-                logs: invocation.logs,
-              ),
-            );
-          }
+        }
 
-          final payload = _readMediaSourcePayload(invocation.data);
-          final url =
-              payload['url']?.toString() ??
-              musicItem.qualities[candidateQuality]?['url']?.toString() ??
-              musicItem.url;
-          if (url == null || url.isEmpty) {
-            final message =
-                payload['msg']?.toString() ??
-                payload['message']?.toString() ??
-                payload['error']?.toString();
-            throw StateError(
-              'Plugin ${plugin.displayName} returned an empty media source for '
-              '"${musicItem.title}" [$candidateQuality]'
-              '${message == null || message.isEmpty ? '' : ': $message'}.',
-            );
-          }
-
-          final headers = _readStringMap(payload['headers']);
-          return PluginMediaSourceResult(
-            url: url,
-            headers: headers,
-            userAgent: _readUserAgent(headers),
-            quality: qualityKeys.contains(candidateQuality)
-                ? candidateQuality
-                : null,
+        final payload = _readMediaSourcePayload(invocation.data);
+        final url =
+            payload['url']?.toString() ??
+            musicItem.qualities[candidateQuality]?['url']?.toString() ??
+            musicItem.url;
+        if (url == null || url.isEmpty) {
+          final message =
+              payload['msg']?.toString() ??
+              payload['message']?.toString() ??
+              payload['error']?.toString();
+          throw StateError(
+            'Plugin ${plugin.displayName} returned an empty media source for '
+            '"${musicItem.title}" [$candidateQuality]'
+            '${message == null || message.isEmpty ? '' : ': $message'}.',
           );
-        } catch (error, stackTrace) {
-          lastError = error;
-          lastStackTrace = stackTrace;
-          final message = error.toString();
-          if (!failureMessages.contains(message)) {
-            failureMessages.add(message);
-          }
+        }
+
+        final headers = _readStringMap(payload['headers']);
+        return PluginMediaSourceResult(
+          url: url,
+          headers: headers,
+          userAgent: _readUserAgent(headers),
+          quality: qualityKeys.contains(candidateQuality)
+              ? candidateQuality
+              : null,
+        );
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        final message = error.toString();
+        if (!failureMessages.contains(message)) {
+          failureMessages.add(message);
         }
       }
     }
@@ -173,7 +172,7 @@ class PluginMethodService {
           _buildMediaSourceFailureSummary(
             plugin: plugin,
             musicItem: musicItem,
-            attemptedQualities: attemptedQualities,
+            quality: candidateQuality,
             failureMessages: failureMessages,
           ),
         ),
@@ -524,7 +523,13 @@ class PluginMethodService {
         arguments: <dynamic>[topListItem.toJson(), page],
       );
       if (!invocation.success) {
-        throw Exception(invocation.errorMessage ?? 'getTopListDetail failed.');
+        // Behave like the original Electron implementation: surface an empty
+        // detail rather than throwing so the UI can show an empty state.
+        return PluginTopListDetailResult(
+          isEnd: true,
+          topListItem: topListItem,
+          musicList: const <MusicItem>[],
+        );
       }
       final payload = _readObject(invocation.data);
       return PluginTopListDetailResult(
@@ -534,25 +539,6 @@ class PluginMethodService {
           payload['musicList'],
           platform: plugin.manifest?.platform,
         ),
-      );
-    } catch (error, stackTrace) {
-      throw StateError(
-        'getTopListDetail failed for ${plugin.displayName} with item '
-        '${jsonEncode(topListItem.toJson())}: $error\n$stackTrace',
-      );
-    }
-  }
-
-  Future<PluginTopListDetailResult> getTopListDetailSafe({
-    required PluginRecord plugin,
-    required MusicSheetItem topListItem,
-    int page = 1,
-  }) async {
-    try {
-      return await getTopListDetail(
-        plugin: plugin,
-        topListItem: topListItem,
-        page: page,
       );
     } catch (_) {
       return PluginTopListDetailResult(
@@ -776,20 +762,6 @@ class PluginMethodService {
     return payload;
   }
 
-  List<String> _buildQualityFallbackOrder({required String requestedQuality}) {
-    final normalized = qualityKeys.contains(requestedQuality)
-        ? requestedQuality
-        : 'standard';
-    final index = qualityKeys.indexOf(normalized);
-    if (index < 0) {
-      return const <String>['standard', 'low', 'high', 'super'];
-    }
-
-    final lower = qualityKeys.sublist(0, index).reversed;
-    final higher = qualityKeys.sublist(index + 1);
-    return <String>[normalized, ...lower, ...higher];
-  }
-
   String _buildMediaSourceAttemptMessage({
     required PluginRecord plugin,
     required MusicItem musicItem,
@@ -826,16 +798,16 @@ class PluginMethodService {
   String _buildMediaSourceFailureSummary({
     required PluginRecord plugin,
     required MusicItem musicItem,
-    required List<String> attemptedQualities,
+    required String quality,
     required List<String> failureMessages,
   }) {
     final buffer = StringBuffer()
       ..write('Plugin ')
       ..write(plugin.displayName)
       ..write(' could not resolve a playable media source for ')
-      ..write('"${musicItem.title}"')
-      ..write('. Tried qualities: ')
-      ..write(attemptedQualities.join(', '));
+      ..write('"${musicItem.title}" [')
+      ..write(quality)
+      ..write(']');
     if (failureMessages.isNotEmpty) {
       buffer
         ..write('. Failures: ')

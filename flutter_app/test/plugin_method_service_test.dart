@@ -226,8 +226,75 @@ void main() {
     });
 
     test(
-      'falls back to lower quality when requested quality returns empty url',
+      'getTopListDetail returns empty payload when invocation fails',
       () async {
+        final harness = await _createHarness(
+          runtime: _FakeRuntime(
+            onInspect: ({required script, required sourceUrl}) {
+              return PluginRuntimeResult(
+                success: true,
+                manifest: const PluginManifest(
+                  platform: 'RemotePlugin',
+                  supportedMethods: <String>['getTopListDetail'],
+                ),
+                diagnostics: PluginDiagnostics(
+                  status: PluginParseStatus.mounted,
+                  checkedAt: DateTime(2026),
+                  message: 'ok',
+                ),
+              );
+            },
+            onInvoke:
+                ({
+                  required script,
+                  required sourceUrl,
+                  required method,
+                  required arguments,
+                  required userVariables,
+                }) {
+                  return const PluginMethodCallResult(
+                    success: false,
+                    errorMessage: 'server is down',
+                    logs: <String>[],
+                    requiredPackages: <String>[],
+                    missingPackages: <String>[],
+                  );
+                },
+          ),
+        );
+
+        try {
+          final sourceFile = File(
+            path.join(harness.tempRoot.path, 'toplist_fail.js'),
+          );
+          await sourceFile.writeAsString('const getTopListDetail = true;');
+          final snapshot = await harness.service.installFromLocal(
+            sourceFile.path,
+          );
+          final plugin = snapshot.plugins.single;
+          final methodService = PluginMethodService(harness.service);
+
+          final result = await methodService.getTopListDetail(
+            plugin: plugin,
+            topListItem: const MusicSheetItem(
+              platform: 'RemotePlugin',
+              id: 't1',
+              title: 'Chart',
+            ),
+          );
+
+          expect(result.isEnd, isTrue);
+          expect(result.musicList, isEmpty);
+        } finally {
+          await harness.dispose();
+        }
+      },
+    );
+
+    test(
+      'stays on requested quality and returns null when empty url is returned',
+      () async {
+        final invocationLog = <String>[];
         final harness = await _createHarness(
           runtime: _FakeRuntime(
             onInspect: ({required script, required sourceUrl}) {
@@ -253,20 +320,12 @@ void main() {
                   required userVariables,
                 }) {
                   final quality = arguments[1]?.toString();
-                  if (quality == 'standard') {
-                    return const PluginMethodCallResult(
-                      success: true,
-                      data: <String, dynamic>{'url': ''},
-                      logs: <String>[],
-                      requiredPackages: <String>[],
-                      missingPackages: <String>[],
-                    );
-                  }
+                  invocationLog.add(quality ?? '');
+                  // Always return empty regardless of quality. This is the
+                  // new contract: no cross-quality fallback.
                   return const PluginMethodCallResult(
                     success: true,
-                    data: <String, dynamic>{
-                      'url': 'https://cdn.example.com/audio-low.mp3',
-                    },
+                    data: <String, dynamic>{'url': ''},
                     logs: <String>[],
                     requiredPackages: <String>[],
                     missingPackages: <String>[],
@@ -294,10 +353,13 @@ void main() {
               title: 'Track',
               artist: 'Artist',
             ),
+            retryCount: 2,
           );
 
-          expect(result?.url, 'https://cdn.example.com/audio-low.mp3');
-          expect(result?.quality, 'low');
+          expect(result, isNull);
+          // Every attempt must use the requested quality. No jumping to low
+          // or high when the plugin says the URL is empty.
+          expect(invocationLog, List<String>.filled(3, 'standard'));
         } finally {
           await harness.dispose();
         }

@@ -267,11 +267,13 @@ void main() {
         script,
         contains("await __musicfree_callBridgeAsync('MusicFreeStorage'"),
       );
+      // crypto-js shim
       expect(script, contains('AES: {'));
+      // cheerio shim — new JS-side selector engine
       expect(script, contains('children: function(selector)'));
+      // big-integer shim — now pure JS BigInt, no bridge call for 'create'
       expect(script, contains('modPow: function(exponent, modulus)'));
-      expect(script, contains("action: 'create'"));
-      expect(script, contains("loader.text = rootCollection.text"));
+      expect(script, contains('__musicfree_bigIntWrap'));
     });
   });
 }

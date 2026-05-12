@@ -174,7 +174,7 @@ final topListDetailProvider =
       if (plugin == null) {
         throw StateError('Plugin not found: ${state.pluginId}');
       }
-      return service.getTopListDetailSafe(
+      return service.getTopListDetail(
         plugin: plugin,
         topListItem: state.topListItem,
       );
