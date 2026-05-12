@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/window/window_visibility_provider.dart';
@@ -56,11 +57,13 @@ class MusicWEPApp extends ConsumerWidget {
         return buildDesktopWindowFrame(
           context: context,
           child: PlayerWindowBridge(
-            child: Stack(
-              children: <Widget>[
-                child ?? const SizedBox.shrink(),
-                const PlayerOverlays(),
-              ],
+            child: _BackPressHandler(
+              child: Stack(
+                children: <Widget>[
+                  child ?? const SizedBox.shrink(),
+                  const PlayerOverlays(),
+                ],
+              ),
             ),
           ),
         );
@@ -108,6 +111,34 @@ class _BootstrapScaffold extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Intercepts the Android back button so it navigates back within the app
+/// rather than immediately exiting. On the root route it minimises to
+/// background (Android behaviour) instead of killing the process.
+class _BackPressHandler extends StatelessWidget {
+  const _BackPressHandler({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      // Never let the system handle the back press directly.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context, rootNavigator: false);
+        if (navigator.canPop()) {
+          navigator.pop();
+        } else {
+          // At the root — move app to background instead of exiting.
+          await SystemNavigator.pop(animated: true);
+        }
+      },
+      child: child,
     );
   }
 }

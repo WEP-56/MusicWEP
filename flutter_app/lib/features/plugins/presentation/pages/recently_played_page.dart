@@ -186,6 +186,82 @@ class _RecentlyPlayedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 980;
+    if (compact) return _buildCompact(context);
+    return _buildWide(context);
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Text(
+              '最近播放',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$playCount 首',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: Icon(Icons.play_circle_filled_rounded, color: accent, size: 32),
+              onPressed: onPlayPressed,
+              tooltip: '播放全部',
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline_rounded,
+                  color: theme.colorScheme.onSurfaceVariant, size: 22),
+              onPressed: onClearPressed,
+              tooltip: '清空',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: searchController,
+          onChanged: onSearchChanged,
+          decoration: InputDecoration(
+            hintText: '搜索最近播放歌曲',
+            isDense: true,
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerHigh,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: accent),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWide(BuildContext context) {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     return SizedBox(

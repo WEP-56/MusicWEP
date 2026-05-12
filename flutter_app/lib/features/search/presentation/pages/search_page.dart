@@ -143,23 +143,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 },
               ),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: supportedPlugins
-                    .map(
-                      (plugin) => _PluginChip(
-                        label: plugin.displayName,
-                        selected: plugin.storageKey == _selectedPluginId,
-                        onTap: () {
-                          setState(() {
-                            _selectedPluginId = plugin.storageKey;
-                          });
-                          _runSearch(controller, data.plugins);
-                        },
-                      ),
-                    )
-                    .toList(growable: false),
+              SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: supportedPlugins.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final plugin = supportedPlugins[index];
+                    return _PluginChip(
+                      label: plugin.displayName,
+                      selected: plugin.storageKey == _selectedPluginId,
+                      onTap: () {
+                        setState(() {
+                          _selectedPluginId = plugin.storageKey;
+                        });
+                        _runSearch(controller, data.plugins);
+                      },
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 16),
               Expanded(

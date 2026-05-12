@@ -22,6 +22,7 @@ import '../../features/media/application/local_music_sheet_repository.dart';
 import '../../features/media/domain/media_route_state.dart';
 import '../../features/media/music_sheet_library_providers.dart';
 import '../../features/player/player_providers.dart';
+import '../../features/player/presentation/mobile_player_page.dart';
 import '../../features/plugins/domain/plugin.dart';
 import '../../features/plugins/plugin_providers.dart';
 import '../../features/update/domain/app_update_models.dart';
@@ -487,6 +488,24 @@ class _MobileDrawer extends ConsumerWidget {
                     ],
                     const Divider(height: 20),
                     ListTile(
+                      leading: const Icon(Icons.checkroom_outlined),
+                      title: const Text('主题外观'),
+                      dense: true,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _showThemeCustomizer(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.system_update_alt_rounded),
+                      title: const Text('检测更新'),
+                      dense: true,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _showAppUpdateDialog(context, ref);
+                      },
+                    ),
+                    ListTile(
                       leading: const Icon(Icons.settings_outlined),
                       title: const Text('设置'),
                       dense: true,
@@ -535,6 +554,77 @@ class _MobileDrawer extends ConsumerWidget {
           .createSheet(name);
     }
   }
+
+  Future<void> _showThemeCustomizer(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('主题外观'),
+        content: const SizedBox(
+          width: 520,
+          child: ThemeCustomizerPane(compact: true),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAppUpdateDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _AppUpdateDialog(
+        onConfirmInstall: () => _showUpdateConfirmation(dialogContext, ref),
+      ),
+    );
+  }
+
+  Future<void> _showUpdateConfirmation(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final updateStatus = ref.read(appUpdateControllerProvider).valueOrNull;
+    if (updateStatus == null || !updateStatus.hasUpdate) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('发现新版本'),
+        content: Text(
+          '当前版本 ${updateStatus.currentVersion}\n'
+          '最新版本 ${updateStatus.latestVersion ?? ''}\n\n'
+          '是否下载并安装？',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('更新'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    unawaited(
+      ref
+          .read(appUpdateControllerProvider.notifier)
+          .downloadAndInstallUpdate(),
+    );
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _AppUpdateProgressDialog(),
+    );
+  }
 }
 
 /// Persistent mini player bar shown at the bottom of every mobile page.
@@ -552,7 +642,26 @@ class _MiniPlayerBar extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () {
-        // TODO: open full-screen player page when it exists.
+        Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            pageBuilder: (ctx, animation, _) => const MobilePlayerPage(),
+            transitionsBuilder: (ctx, animation, _, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 280),
+          ),
+        );
       },
       child: Container(
         height: 64,
@@ -628,13 +737,145 @@ class _MiniPlayerBar extends ConsumerWidget {
                 size: 24,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-              onPressed: () {
-                // TODO: open playlist sheet.
-              },
+              onPressed: () => _showPlaylistSheet(context, ref),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+Future<void> _showPlaylistSheet(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) =>
+          _PlaylistSheet(scrollController: scrollController),
+    ),
+  );
+}
+
+class _PlaylistSheet extends ConsumerWidget {
+  const _PlaylistSheet({required this.scrollController});
+
+  final ScrollController scrollController;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerControllerProvider);
+    final queue = playerState.queue;
+    final currentIndex = playerState.currentIndex;
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
+
+    return Column(
+      children: <Widget>[
+        // Handle bar
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 10),
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Row(
+            children: <Widget>[
+              Text(
+                '播放列表',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${queue.length} 首',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: queue.isEmpty
+              ? Center(
+                  child: Text(
+                    '播放列表为空',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  controller: scrollController,
+                  itemCount: queue.length,
+                  itemBuilder: (ctx, index) {
+                    final track = queue[index];
+                    final isCurrent = index == currentIndex;
+                    return ListTile(
+                      dense: true,
+                      leading: isCurrent
+                          ? Icon(
+                              Icons.equalizer_rounded,
+                              color: accent,
+                              size: 20,
+                            )
+                          : Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontSize: 13,
+                              ),
+                            ),
+                      title: Text(
+                        track.title ?? '未知曲目',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isCurrent
+                              ? accent
+                              : theme.colorScheme.onSurface,
+                          fontWeight: isCurrent
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: track.artist?.isNotEmpty == true
+                          ? Text(
+                              track.artist!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ref
+                            .read(playerControllerProvider.notifier)
+                            .playAt(index);
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

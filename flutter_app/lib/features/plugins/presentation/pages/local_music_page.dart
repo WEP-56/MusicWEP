@@ -494,6 +494,104 @@ class _LocalMusicOperations extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 980;
+    if (compact) return _buildCompact(context);
+    return _buildWide(context);
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // Search field full-width
+        TextField(
+          controller: searchController,
+          onChanged: onSearchChanged,
+          decoration: InputDecoration(
+            hintText: '搜索本地音乐',
+            isDense: true,
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerHigh,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: theme.dividerColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: accent),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Action icons + view toggles in one scrollable row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: <Widget>[
+              _IconAction(
+                icon: Icons.folder_open_rounded,
+                label: busy ? '处理中' : '扫描',
+                onTap: onImportFolder,
+              ),
+              const SizedBox(width: 8),
+              _IconAction(
+                icon: Icons.audio_file_rounded,
+                label: '导入',
+                onTap: onImportFiles,
+              ),
+              const SizedBox(width: 8),
+              _IconAction(
+                icon: Icons.delete_outline_rounded,
+                label: '清空',
+                onTap: onClear,
+              ),
+              const SizedBox(width: 16),
+              _ViewSwitchButton(
+                icon: Icons.music_note_rounded,
+                tooltip: '列表',
+                selected: displayView == _LocalMusicDisplayView.list,
+                onTap: () => onChangeView(_LocalMusicDisplayView.list),
+              ),
+              const SizedBox(width: 6),
+              _ViewSwitchButton(
+                icon: Icons.person_outline_rounded,
+                tooltip: '歌手',
+                selected: displayView == _LocalMusicDisplayView.artist,
+                onTap: () => onChangeView(_LocalMusicDisplayView.artist),
+              ),
+              const SizedBox(width: 6),
+              _ViewSwitchButton(
+                icon: Icons.album_outlined,
+                tooltip: '专辑',
+                selected: displayView == _LocalMusicDisplayView.album,
+                onTap: () => onChangeView(_LocalMusicDisplayView.album),
+              ),
+              const SizedBox(width: 6),
+              _ViewSwitchButton(
+                icon: Icons.folder_open_rounded,
+                tooltip: '文件夹',
+                selected: displayView == _LocalMusicDisplayView.folder,
+                onTap: () => onChangeView(_LocalMusicDisplayView.folder),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWide(BuildContext context) {
     final theme = Theme.of(context);
     final accent = AppTheme.colorsOf(context).accent;
     return Row(
@@ -931,4 +1029,52 @@ class _TrackGroup {
 
 extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// Compact icon+label action button used in the mobile action bar.
+class _IconAction extends StatelessWidget {
+  const _IconAction({required this.icon, required this.label, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppTheme.colorsOf(context).accent;
+    final disabled = onTap == null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: disabled
+                ? Theme.of(context).disabledColor
+                : Theme.of(context).dividerColor,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: 16,
+              color: disabled ? Theme.of(context).disabledColor : accent,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: disabled ? Theme.of(context).disabledColor : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

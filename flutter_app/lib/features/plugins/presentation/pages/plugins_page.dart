@@ -25,45 +25,10 @@ class PluginsPage extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  OutlinedButton(
-                    onPressed: snapshot.isLoading
-                        ? null
-                        : () async {
-                            final picked = await FilePicker.platform.pickFiles(
-                              allowMultiple: false,
-                              type: FileType.custom,
-                              allowedExtensions: const <String>['js', 'json'],
-                            );
-                            final path = picked?.files.single.path;
-                            if (path == null || !context.mounted) {
-                              return;
-                            }
-                            await controller.installFromLocal(path);
-                          },
-                    child: const Text('从本地文件安装'),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: snapshot.isLoading
-                        ? null
-                        : () => _showInstallUrlDialog(context, controller),
-                    child: const Text('从网络安装插件'),
-                  ),
-                  const Spacer(),
-                  OutlinedButton(
-                    onPressed: () => context.go('/subscriptions'),
-                    child: const Text('订阅设置'),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: snapshot.isLoading
-                        ? null
-                        : controller.refreshSubscriptions,
-                    child: const Text('更新订阅'),
-                  ),
-                ],
+              _PluginActionBar(
+                snapshot: snapshot,
+                controller: controller,
+                context: context,
               ),
               const SizedBox(height: 18),
               Expanded(
@@ -410,6 +375,185 @@ class _ActionText extends StatelessWidget {
               : (danger ? const Color(0xFFE65C4F) : accent),
           fontSize: 14,
           fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+/// Responsive action bar for the plugins page.
+/// On narrow screens (mobile) shows icon-only buttons in a scrollable row.
+/// On wide screens shows the original text buttons.
+class _PluginActionBar extends StatelessWidget {
+  const _PluginActionBar({
+    required this.snapshot,
+    required this.controller,
+    required this.context,
+  });
+
+  final AsyncValue<dynamic> snapshot;
+  final PluginController controller;
+  final BuildContext context;
+
+  @override
+  Widget build(BuildContext _) {
+    final compact = MediaQuery.of(context).size.width < 980;
+    if (compact) {
+      return _buildCompact();
+    }
+    return _buildWide();
+  }
+
+  Widget _buildWide() {
+    return Row(
+      children: <Widget>[
+        OutlinedButton(
+          onPressed: snapshot.isLoading ? null : _installFromLocal,
+          child: const Text('从本地文件安装'),
+        ),
+        const SizedBox(width: 12),
+        OutlinedButton(
+          onPressed: snapshot.isLoading
+              ? null
+              : () => _showInstallUrlDialogStatic(context, controller),
+          child: const Text('从网络安装插件'),
+        ),
+        const Spacer(),
+        OutlinedButton(
+          onPressed: () => context.go('/subscriptions'),
+          child: const Text('订阅设置'),
+        ),
+        const SizedBox(width: 12),
+        OutlinedButton(
+          onPressed: snapshot.isLoading ? null : controller.refreshSubscriptions,
+          child: const Text('更新订阅'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompact() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          _IconAction(
+            icon: Icons.folder_open_rounded,
+            label: '本地安装',
+            onTap: snapshot.isLoading ? null : _installFromLocal,
+          ),
+          const SizedBox(width: 8),
+          _IconAction(
+            icon: Icons.cloud_download_outlined,
+            label: '网络安装',
+            onTap: snapshot.isLoading
+                ? null
+                : () => _showInstallUrlDialogStatic(context, controller),
+          ),
+          const SizedBox(width: 8),
+          _IconAction(
+            icon: Icons.rss_feed_rounded,
+            label: '订阅设置',
+            onTap: () => context.go('/subscriptions'),
+          ),
+          const SizedBox(width: 8),
+          _IconAction(
+            icon: Icons.sync_rounded,
+            label: '更新订阅',
+            onTap: snapshot.isLoading ? null : controller.refreshSubscriptions,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _installFromLocal() async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: const <String>['js', 'json'],
+    );
+    final path = picked?.files.single.path;
+    if (path == null) return;
+    await controller.installFromLocal(path);
+  }
+
+  static Future<void> _showInstallUrlDialogStatic(
+    BuildContext context,
+    PluginController controller,
+  ) async {
+    final textController = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('安装插件'),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '粘贴 .js 插件链接或 .json 订阅地址',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(ctx).pop(textController.text.trim()),
+            child: const Text('安装'),
+          ),
+        ],
+      ),
+    );
+    if (value != null && value.isNotEmpty) {
+      await controller.installFromUrl(value);
+    }
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  const _IconAction({required this.icon, required this.label, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppTheme.colorsOf(context).accent;
+    final disabled = onTap == null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: disabled
+                ? Theme.of(context).disabledColor
+                : Theme.of(context).dividerColor,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: 18,
+              color: disabled ? Theme.of(context).disabledColor : accent,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: disabled ? Theme.of(context).disabledColor : null,
+              ),
+            ),
+          ],
         ),
       ),
     );
