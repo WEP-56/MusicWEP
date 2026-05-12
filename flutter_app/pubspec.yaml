@@ -39,4 +39,3 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
-    - windows/runner/resources/app_icon.ico

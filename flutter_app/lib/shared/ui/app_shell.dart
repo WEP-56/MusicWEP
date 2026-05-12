@@ -7,7 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as path_util;
-import 'package:window_manager/window_manager.dart';
+
+// window_manager is desktop-only.
+import 'app_shell_window.dart'
+    if (dart.library.html) 'app_shell_window_stub.dart';
 
 import '../../app/theme/app_theme.dart';
 import '../../app/theme/theme_controller.dart';
@@ -16,6 +19,7 @@ import '../../core/media/media_constants.dart';
 import '../../core/media/media_models.dart';
 import '../../core/window/window_visibility_provider.dart';
 import '../../features/media/application/local_music_sheet_repository.dart';
+import '../../features/media/domain/media_route_state.dart';
 import '../../features/media/music_sheet_library_providers.dart';
 import '../../features/player/player_providers.dart';
 import '../../features/plugins/domain/plugin.dart';
@@ -92,44 +96,12 @@ class AppShellScaffold extends ConsumerWidget {
         : null;
 
     if (compact) {
-      return Scaffold(
-        backgroundColor: shellBackground,
-        appBar: AppBar(title: Text(title), actions: actions),
-        body: SafeArea(child: child),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedCompactIndex(path),
-          onDestinationSelected: (index) {
-            context.go(switch (index) {
-              0 => '/search',
-              1 => '/discover',
-              2 => '/plugins',
-              3 => '/recently-played',
-              _ => '/settings',
-            });
-          },
-          destinations: const <NavigationDestination>[
-            NavigationDestination(
-              icon: Icon(Icons.search_rounded),
-              label: '搜索',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.explore_rounded),
-              label: '发现',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.extension_rounded),
-              label: '插件',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.history_rounded),
-              label: '最近',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              label: '设置',
-            ),
-          ],
-        ),
+      return _MobileScaffold(
+        path: path,
+        title: title,
+        actions: actions,
+        backgroundMedia: backgroundMedia,
+        child: child,
       );
     }
 
@@ -200,6 +172,494 @@ class AppShellScaffold extends ConsumerWidget {
     return 0;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Mobile layout
+// ---------------------------------------------------------------------------
+
+/// Full mobile scaffold: hamburger → drawer, top search bar, content, mini
+/// player bar at the bottom.
+class _MobileScaffold extends ConsumerWidget {
+  const _MobileScaffold({
+    required this.path,
+    required this.title,
+    required this.actions,
+    required this.backgroundMedia,
+    required this.child,
+  });
+
+  final String path;
+  final String title;
+  final List<Widget> actions;
+  final _ResolvedBackgroundMedia? backgroundMedia;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final shellBackground = theme.scaffoldBackgroundColor;
+
+    return Scaffold(
+      backgroundColor: shellBackground,
+      // The drawer holds the full sidebar navigation.
+      drawer: _MobileDrawer(path: path),
+      body: _ShellBackgroundSurface(
+        background: backgroundMedia,
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              _MobileTopBar(title: title, actions: actions),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: child,
+                ),
+              ),
+              const _MiniPlayerBar(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top bar for mobile: hamburger + title/search + optional actions.
+class _MobileTopBar extends ConsumerStatefulWidget {
+  const _MobileTopBar({required this.title, required this.actions});
+
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  ConsumerState<_MobileTopBar> createState() => _MobileTopBarState();
+}
+
+class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final q = GoRouterState.of(context).uri.queryParameters['q'] ?? '';
+    if (_searchController.text != q) _searchController.text = q;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final themeColors = AppTheme.colorsOf(context);
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: themeColors.topBarBackground,
+      ),
+      child: Row(
+        children: <Widget>[
+          // Hamburger opens the drawer.
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.menu_rounded, color: Colors.white),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Search field.
+          Expanded(
+            child: GestureDetector(
+              onTap: () => context.go('/search'),
+              child: AbsorbPointer(
+                absorbing: GoRouterState.of(context).uri.path != '/search',
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: themeColors.topBarFieldBackground,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        Icons.search_rounded,
+                        color: themeColors.topBarHint,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GoRouterState.of(context).uri.path == '/search'
+                            ? TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  hintText: '点击这里开始搜索',
+                                  hintStyle: TextStyle(
+                                    color: themeColors.topBarHint,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                onSubmitted: (value) {
+                                  final q = value.trim();
+                                  if (q.isEmpty) return;
+                                  context.go(
+                                    '/search?q=${Uri.encodeQueryComponent(q)}',
+                                  );
+                                },
+                              )
+                            : Text(
+                                '点击这里开始搜索',
+                                style: TextStyle(
+                                  color: themeColors.topBarHint,
+                                  fontSize: 14,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          ...widget.actions,
+        ],
+      ),
+    );
+  }
+}
+
+/// Slide-out drawer that mirrors the desktop sidebar navigation.
+class _MobileDrawer extends ConsumerWidget {
+  const _MobileDrawer({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final localSheets = ref.watch(localMusicSheetControllerProvider);
+    final starredSheets = ref.watch(starredMusicSheetControllerProvider);
+
+    void navigate(String destination) {
+      Navigator.of(context).pop(); // close drawer
+      context.go(destination);
+    }
+
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: const Text(
+                'MusicWEP',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const Divider(height: 1),
+            // Primary destinations
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    ...AppShellScaffold._primaryDestinations.map(
+                      (item) => ListTile(
+                        leading: Icon(item.icon),
+                        title: Text(item.label),
+                        selected: path.startsWith(item.path),
+                        selectedColor: AppTheme.colorsOf(context).accent,
+                        onTap: () => navigate(item.path),
+                        dense: true,
+                      ),
+                    ),
+                    const Divider(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                      child: Row(
+                        children: <Widget>[
+                          Text(
+                            '我的歌单',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            tooltip: '新建歌单',
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _showCreateSheetDialog(context, ref);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    ...localSheets.valueOrNull
+                            ?.map(
+                              (sheet) => ListTile(
+                                leading: Icon(
+                                  sheet.id == defaultLocalMusicSheetId
+                                      ? Icons.favorite_border_rounded
+                                      : Icons.queue_music_rounded,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  sheet.id == defaultLocalMusicSheetId
+                                      ? '我喜欢'
+                                      : (sheet.title ?? '未命名歌单'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                dense: true,
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  context.go(
+                                    _musicSheetRoute(
+                                      localPluginName,
+                                      sheet.id,
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                            .toList(growable: false) ??
+                        const <Widget>[],
+                    if (starredSheets.valueOrNull?.isNotEmpty == true) ...[
+                      const Divider(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                        child: Text(
+                          '收藏歌单',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      ...starredSheets.valueOrNull!
+                          .map(
+                            (sheet) => ListTile(
+                              leading: const Icon(
+                                Icons.favorite_border_rounded,
+                                size: 20,
+                              ),
+                              title: Text(
+                                sheet.title ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              dense: true,
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                context.go(
+                                  _musicSheetRoute(
+                                    sheet.platform ?? localPluginName,
+                                    sheet.id,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                          .toList(growable: false),
+                    ],
+                    const Divider(height: 20),
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined),
+                      title: const Text('设置'),
+                      dense: true,
+                      onTap: () => navigate('/settings'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCreateSheetDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('新建歌单'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '歌单名称'),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      await ref
+          .read(localMusicSheetControllerProvider.notifier)
+          .createSheet(name);
+    }
+  }
+}
+
+/// Persistent mini player bar shown at the bottom of every mobile page.
+class _MiniPlayerBar extends ConsumerWidget {
+  const _MiniPlayerBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerControllerProvider);
+    final track = playerState.currentTrack;
+    final theme = Theme.of(context);
+    final accent = AppTheme.colorsOf(context).accent;
+
+    if (track == null) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: () {
+        // TODO: open full-screen player page when it exists.
+      },
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          border: Border(
+            top: BorderSide(color: theme.dividerColor),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: <Widget>[
+            // Artwork
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: track.artwork?.isNotEmpty == true
+                  ? Image.network(
+                      track.artwork!,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _ArtworkPlaceholder(
+                        size: 44,
+                        accent: accent,
+                      ),
+                    )
+                  : _ArtworkPlaceholder(size: 44, accent: accent),
+            ),
+            const SizedBox(width: 10),
+            // Title + artist
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    track.title ?? '未知曲目',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (track.artist?.isNotEmpty == true)
+                    Text(
+                      track.artist!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Play / Pause
+            IconButton(
+              icon: Icon(
+                playerState.isPlaying
+                    ? Icons.pause_circle_filled_rounded
+                    : Icons.play_circle_filled_rounded,
+                size: 36,
+                color: accent,
+              ),
+              onPressed: () => ref
+                  .read(playerControllerProvider.notifier)
+                  .togglePlayback(),
+            ),
+            // Playlist
+            IconButton(
+              icon: Icon(
+                Icons.queue_music_rounded,
+                size: 24,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              onPressed: () {
+                // TODO: open playlist sheet.
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtworkPlaceholder extends StatelessWidget {
+  const _ArtworkPlaceholder({required this.size, required this.accent});
+
+  final double size;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Icon(Icons.music_note_rounded, color: accent, size: size * 0.5),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 class _ShellBackgroundSurface extends ConsumerStatefulWidget {
   const _ShellBackgroundSurface({

@@ -1,0 +1,242 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
+
+import '../domain/player_state.dart';
+import '../player_providers.dart';
+import 'desktop_lyric_window.dart';
+
+/// Manages the desktop lyric / mini-mode sub-windows and window manager
+/// interactions. Only instantiated on Windows/Linux/macOS.
+class DesktopWindowBridgeController {
+  DesktopWindowBridgeController(this._ref);
+
+  final WidgetRef _ref;
+  WindowController? _mainWindow;
+  WindowController? _lyricWindow;
+  WindowController? _miniModeWindow;
+  bool _openingLyricWindow = false;
+  bool _openingMiniModeWindow = false;
+  PlayerState? _latestState;
+  ProviderSubscription<PlayerState>? _playerStateSubscription;
+  String? _lastSyncedPayload;
+  String? _lastSyncedMiniModePayload;
+
+  Future<void> init(WidgetRef ref) async {
+    await _setupWindowHandlers();
+    _latestState = ref.read(playerControllerProvider);
+    _playerStateSubscription = ref.listenManual(playerControllerProvider, (
+      _,
+      next,
+    ) {
+      _latestState = next;
+      unawaited(_syncLyricWindow(next));
+      unawaited(_syncMiniModeWindow(next));
+    });
+    if (_latestState != null) {
+      unawaited(_syncLyricWindow(_latestState!));
+      unawaited(_syncMiniModeWindow(_latestState!));
+    }
+  }
+
+  void dispose() {
+    _playerStateSubscription?.close();
+  }
+
+  Future<void> _setupWindowHandlers() async {
+    _mainWindow = await WindowController.fromCurrentEngine();
+    await _mainWindow!.setWindowMethodHandler((call) async {
+      if (call.method != 'player_control') return null;
+      final args = call.arguments;
+      final action = args is Map ? args['action']?.toString() : null;
+      final controller = _ref.read(playerControllerProvider.notifier);
+      switch (action) {
+        case 'previous':
+          await controller.playPrevious();
+          break;
+        case 'next':
+          await controller.playNext();
+          break;
+        case 'toggle':
+          await controller.togglePlayback();
+          break;
+        case 'close_lyric':
+          controller.toggleDesktopLyric();
+          break;
+        case 'restore_main_from_mini':
+          _miniModeWindow = null;
+          _lastSyncedMiniModePayload = null;
+          controller.setMiniModeVisible(false);
+          await _showMainWindow();
+          break;
+      }
+      return true;
+    });
+  }
+
+  Future<void> _syncLyricWindow(PlayerState state) async {
+    if (state.miniModeVisible) {
+      _lastSyncedPayload = null;
+      await _closeLyricWindow();
+      return;
+    }
+    if (state.desktopLyricVisible) {
+      await _ensureLyricWindow();
+      await _pushLyricState(state);
+    } else {
+      _lastSyncedPayload = null;
+      await _closeLyricWindow();
+    }
+  }
+
+  Future<void> _syncMiniModeWindow(PlayerState state) async {
+    if (state.miniModeVisible) {
+      await _ensureMiniModeWindow();
+      await _pushMiniModeState(state);
+      await _hideMainWindow();
+    } else {
+      _lastSyncedMiniModePayload = null;
+      _miniModeWindow = null;
+    }
+  }
+
+  Future<void> _ensureLyricWindow() async {
+    if (_lyricWindow != null || _openingLyricWindow) return;
+    _openingLyricWindow = true;
+    try {
+      final mainWindow =
+          _mainWindow ?? await WindowController.fromCurrentEngine();
+      final latestState = _latestState;
+      final args = DesktopLyricWindowArgs(
+        type: DesktopLyricWindowArgs.lyric,
+        mainWindowId: mainWindow.windowId,
+        initialData: latestState == null
+            ? null
+            : DesktopLyricWindowData(
+                title: latestState.currentTrack?.title,
+                artist: latestState.currentTrack?.artist,
+                plugin: latestState.plugin?.displayName,
+                artwork: latestState.currentTrack?.artwork,
+                currentLyricIndex: latestState.currentLyricIndex,
+                currentLyric: latestState.currentLyricLine?.text,
+                translation: latestState.currentLyricLine?.translation,
+                playing: latestState.isPlaying,
+              ),
+      );
+      final controller = await WindowController.create(
+        WindowConfiguration(hiddenAtLaunch: true, arguments: args.encode()),
+      );
+      _lyricWindow = controller;
+      if (latestState != null && latestState.desktopLyricVisible) {
+        await _pushLyricState(latestState);
+      }
+    } finally {
+      _openingLyricWindow = false;
+    }
+  }
+
+  Future<void> _ensureMiniModeWindow() async {
+    if (_miniModeWindow != null || _openingMiniModeWindow) return;
+    _openingMiniModeWindow = true;
+    try {
+      final mainWindow =
+          _mainWindow ?? await WindowController.fromCurrentEngine();
+      final latestState = _latestState;
+      final args = DesktopLyricWindowArgs(
+        type: DesktopLyricWindowArgs.miniMode,
+        mainWindowId: mainWindow.windowId,
+        initialData: latestState == null
+            ? null
+            : DesktopLyricWindowData(
+                title: latestState.currentTrack?.title,
+                artist: latestState.currentTrack?.artist,
+                plugin: latestState.plugin?.displayName,
+                artwork: latestState.currentTrack?.artwork,
+                currentLyricIndex: latestState.currentLyricIndex,
+                currentLyric: latestState.currentLyricLine?.text,
+                translation: latestState.currentLyricLine?.translation,
+                playing: latestState.isPlaying,
+              ),
+      );
+      final controller = await WindowController.create(
+        WindowConfiguration(hiddenAtLaunch: true, arguments: args.encode()),
+      );
+      _miniModeWindow = controller;
+      if (latestState != null && latestState.miniModeVisible) {
+        await _pushMiniModeState(latestState);
+      }
+    } finally {
+      _openingMiniModeWindow = false;
+    }
+  }
+
+  Future<void> _pushLyricState(PlayerState state) async {
+    final window = _lyricWindow;
+    if (window == null) return;
+    final payload = <String, dynamic>{
+      'title': state.currentTrack?.title,
+      'artist': state.currentTrack?.artist,
+      'plugin': state.plugin?.displayName,
+      'artwork': state.currentTrack?.artwork,
+      'currentLyricIndex': state.currentLyricIndex,
+      'currentLyric': state.currentLyricLine?.text,
+      'translation': state.currentLyricLine?.translation,
+      'playing': state.isPlaying,
+    };
+    final signature = jsonEncode(payload);
+    if (_lastSyncedPayload == signature) return;
+    try {
+      await window.invokeMethod('sync_lyric_data', payload);
+      _lastSyncedPayload = signature;
+    } catch (_) {}
+  }
+
+  Future<void> _pushMiniModeState(PlayerState state) async {
+    final window = _miniModeWindow;
+    if (window == null) return;
+    final payload = <String, dynamic>{
+      'title': state.currentTrack?.title,
+      'artist': state.currentTrack?.artist,
+      'plugin': state.plugin?.displayName,
+      'artwork': state.currentTrack?.artwork,
+      'currentLyricIndex': state.currentLyricIndex,
+      'currentLyric': state.currentLyricLine?.text,
+      'translation': state.currentLyricLine?.translation,
+      'playing': state.isPlaying,
+    };
+    final signature = jsonEncode(payload);
+    if (_lastSyncedMiniModePayload == signature) return;
+    try {
+      await window.invokeMethod('sync_lyric_data', payload);
+      _lastSyncedMiniModePayload = signature;
+    } catch (_) {}
+  }
+
+  Future<void> _closeLyricWindow() async {
+    final window = _lyricWindow;
+    _lyricWindow = null;
+    if (window == null) return;
+    try {
+      await window.invokeMethod('window_close');
+    } catch (_) {}
+  }
+
+  Future<void> _hideMainWindow() async {
+    try {
+      await windowManager.hide();
+      await windowManager.setSkipTaskbar(true);
+    } catch (_) {}
+  }
+
+  Future<void> _showMainWindow() async {
+    try {
+      if (await windowManager.isMinimized()) await windowManager.restore();
+      await windowManager.show();
+      await windowManager.focus();
+      await windowManager.setSkipTaskbar(false);
+    } catch (_) {}
+  }
+}
